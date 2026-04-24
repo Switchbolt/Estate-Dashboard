@@ -1056,6 +1056,28 @@ function LiveTab() {
           )
         )
       ),
+      e(Card,{style:{marginBottom:14,padding:'12px 16px'}},
+        e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}},'Portfolio Cost Basis & Unrealized Gains — Feb 2026 Snapshot'),
+        e('div',{style:{display:'flex',gap:28,flexWrap:'wrap'}},(function(){
+          var kb=HOLDINGS.filter(function(h){return h.cb>0;});
+          var cb=kb.reduce(function(s,h){return s+h.cb;},0);
+          var mv=kb.reduce(function(s,h){return s+h.snapMv;},0);
+          var gain=mv-cb;
+          return [
+            {l:'Total Cost Basis',v:fmtF(cb),c:C.silver,sub:kb.length+' of 109 tracked'},
+            {l:'Feb 2026 MV (tracked)',v:fmtF(mv),c:C.text,sub:'snapshot prices'},
+            {l:'Unrealized Gain',v:'+'+fmtF(gain),c:C.bull,sub:'+'+(gain/cb*100).toFixed(0)+'% return on cost'},
+            {l:'Stepped-Up / Unknown',v:(HOLDINGS.length-kb.length)+' positions',c:C.muted,sub:'basis not tracked'},
+            {l:'Yield on Cost',v:(DIV_ANNUAL_TOTAL/cb*100).toFixed(1)+'%',c:C.inc1,sub:fmtF(DIV_ANNUAL_TOTAL)+'/yr dividends'}
+          ];
+        })().map(function(it){
+          return e('div',{key:it.l},
+            e('div',{style:{fontSize:10,color:C.muted,marginBottom:3}},it.l),
+            e('div',{style:{fontSize:14,fontWeight:700,fontFamily:'monospace',color:it.c}},it.v),
+            e('div',{style:{fontSize:10,color:C.muted,marginTop:1}},it.sub)
+          );
+        }))
+      ),
       e('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:10,flexWrap:'wrap'}},
         e('span',{style:{fontSize:12,color:C.muted}},'Sort by:'),
         [{k:'mv',l:'Mkt Value'},{k:'chg',l:'Change $'},{k:'chgpct',l:'Change %'},{k:'day',l:'Day Chg'}].map(function(opt){
@@ -1154,12 +1176,23 @@ var INC_PORT_ONLY=genIncomeData(99,false),INC_NOW=genIncomeData(0,false),INC_203
 var CUR=INC_PORT_ONLY[0],CUR_TOTAL=CUR.equityDiv+CUR.fundInc+CUR.muniInc+CUR.cashInc;
 // ─── Main App ─────────────────────────────────────────────────────────────────
 function App(){
-  var _s=useState('income'),tab=_s[0],setTab=_s[1];
+  var _s=useState('networth'),tab=_s[0],setTab=_s[1];
   var _s2=useState(6),atheneStart=_s2[0],setAS=_s2[1];
   var _s3=useState(false),showNH=_s3[0],setShowNH=_s3[1];
+  var _sSS=useState({monthly:2800,startYear:2032,cola:0.023}),SS=_sSS[0],setSS=_sSS[1];
+  var _sPEN=useState({monthly:0,startYear:2026,cola:0.0}),PEN=_sPEN[0],setPEN=_sPEN[1];
+  var _sCT=useState(RE_CT),curCT=_sCT[0],setCurCT=_sCT[1];
+  var _sNH=useState(RE_NH),curNH=_sNH[0],setCurNH=_sNH[1];
   var AINC=genIncomeData(atheneStart,showNH);
   var atheneLabel=atheneStart===0?'Now (2026)':atheneStart===6?'2032 (surrender end)':atheneStart===10?'2036':'2041';
-  var tabs=[{k:'dividends',l:'💰 Dividends'},{k:'live',l:'🔴 Live'},{k:'income',l:'📈 Income'},{k:'overview',l:'Overview'},{k:'annuities',l:'Annuities'},{k:'projection',l:'Projection'},{k:'s1',l:'Strategy 1'},{k:'s2',l:'Strategy 2'},{k:'s3',l:'Strategy 3'},{k:'compare',l:'Compare All'}];
+  function ssInc(y){if(2026+y<SS.startYear)return 0;var a=2026+y-SS.startYear;return Math.round(SS.monthly*12*Math.pow(1+SS.cola,a));}
+  function penInc(y){if(2026+y<PEN.startYear)return 0;var a=2026+y-PEN.startYear;return PEN.cola>0?Math.round(PEN.monthly*12*Math.pow(1+PEN.cola,a)):Math.round(PEN.monthly*12);}
+  var _kb=HOLDINGS.filter(function(h){return h.cb>0;});
+  var totalCostBasis=_kb.reduce(function(s,h){return s+h.cb;},0);
+  var totalMvKnown=_kb.reduce(function(s,h){return s+h.snapMv;},0);
+  var totalUnrealGain=totalMvKnown-totalCostBasis;
+  var yieldOnCost=totalCostBasis>0?DIV_ANNUAL_TOTAL/totalCostBasis*100:0;
+  var tabs=[{k:'networth',l:'💎 Net Worth'},{k:'dividends',l:'💰 Dividends'},{k:'live',l:'🔴 Live'},{k:'income',l:'📈 Income'},{k:'overview',l:'Overview'},{k:'annuities',l:'Annuities'},{k:'projection',l:'Projection'},{k:'s1',l:'Strategy 1'},{k:'s2',l:'Strategy 2'},{k:'s3',l:'Strategy 3'},{k:'compare',l:'Compare All'}];
   var e=React.createElement;
   function tabBtn(k,l){return e('button',{key:k,onClick:function(){setTab(k);},style:{padding:'8px 14px',fontSize:11,fontWeight:tab===k?700:500,letterSpacing:'0.04em',textTransform:'uppercase',cursor:'pointer',borderRadius:6,border:'1px solid '+(tab===k?C.gold:C.border),background:tab===k?C.gold:'transparent',color:tab===k?'#080d18':C.silver}},l);}
 
@@ -1173,6 +1206,111 @@ function App(){
     ),
     e('div',{style:{display:'flex',gap:6,marginBottom:22,flexWrap:'wrap'}},tabs.map(function(t){return tabBtn(t.k,t.l);})),
 
+    tab==='networth'&&(function(){
+      var curNWtotal=INVEST+curCT+curNH+SB_CURRENT_AV+ATH_CURRENT_AV+MUNIS_MV+FUNDS_MV+CASH_MV;
+      var ssNow=ssInc(0),penNow=penInc(0),curInc=CUR_TOTAL+ssNow+penNow;
+      return e('div',null,
+        e(Card,{style:{marginBottom:16,padding:'20px 22px',background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.25)'}},
+          e('div',{style:{display:'grid',gridTemplateColumns:'1fr auto',gap:20,alignItems:'start'}},
+            e('div',null,
+              e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}},'Total Net Worth — Feb 2026 Snapshot Baseline'),
+              e('div',{style:{fontSize:40,fontWeight:900,fontFamily:'monospace',color:C.gold,letterSpacing:'-0.03em'}},'$'+(curNWtotal/1e6).toFixed(2)+'M'),
+              e('div',{style:{fontSize:12,color:C.muted,marginTop:8,display:'flex',gap:20,flexWrap:'wrap'}},
+                e('span',null,'Portfolio: ',e('span',{style:{color:C.gold,fontWeight:600}},fmt(INVEST))),
+                e('span',null,'Real Estate: ',e('span',{style:{color:C.re2,fontWeight:600}},fmt(curCT+curNH))),
+                e('span',null,'Annuities: ',e('span',{style:{color:C.an1,fontWeight:600}},fmt(SB_CURRENT_AV+ATH_CURRENT_AV))),
+                e('span',null,'Bonds+Cash: ',e('span',{style:{color:C.inc3,fontWeight:600}},fmt(MUNIS_MV+FUNDS_MV+CASH_MV)))
+              )
+            ),
+            e('div',{style:{textAlign:'right'}},
+              e('div',{style:{fontSize:10,color:C.muted,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.08em'}},'Annual Income'),
+              e('div',{style:{fontSize:26,fontWeight:800,fontFamily:'monospace',color:C.inc1}},fmt(curInc)+'/yr'),
+              ssNow===0&&e('div',{style:{fontSize:10,color:C.muted,marginTop:3}},'SS starts '+SS.startYear+' · Pension: '+(PEN.monthly>0?'$'+PEN.monthly+'/mo':'not set'))
+            )
+          ),
+          e('div',{style:{display:'flex',height:10,borderRadius:5,overflow:'hidden',marginTop:16}},
+            [{v:INVEST,c:C.gold},{v:curNH,c:C.re2},{v:curCT,c:C.re1},{v:SB_CURRENT_AV,c:C.an1},{v:ATH_CURRENT_AV,c:C.an2},{v:MUNIS_MV+FUNDS_MV+CASH_MV,c:C.inc3}].map(function(it,i){
+              return e('div',{key:i,style:{width:(it.v/curNWtotal*100)+'%',background:it.c,marginLeft:i>0?1:0}});
+            })
+          )
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
+          e(Card,null,
+            e(SH,{n:'01',title:'Investment Portfolio'}),
+            e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}},
+              [{l:'Equity Market Value',v:EQUITY_VALUE,c:C.gold,s:'109 positions · Feb 2026'},
+               {l:'Known Cost Basis',v:totalCostBasis,c:C.silver,s:_kb.length+' of 109 tracked'},
+               {l:'Unrealized Gain',v:totalUnrealGain,c:C.bull,s:'+'+(totalUnrealGain/totalCostBasis*100).toFixed(0)+'% vs cost basis'},
+               {l:'Annual Dividends',v:DIV_ANNUAL_TOTAL,c:C.inc1,s:'Yield on cost: '+yieldOnCost.toFixed(1)+'%'}
+              ].map(function(it){return e(Card,{key:it.l,style:{padding:'10px 12px'}},
+                e('div',{style:{fontSize:10,color:C.muted,marginBottom:3}},it.l),
+                e('div',{style:{fontSize:15,fontWeight:800,fontFamily:'monospace',color:it.c}},fmtF(it.v)),
+                e('div',{style:{fontSize:10,color:C.muted,marginTop:2}},it.s)
+              );})),
+            e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:8,fontSize:11,color:C.muted,display:'flex',gap:16,flexWrap:'wrap'}},
+              [{l:'Munis',v:MUNIS_MV,c:C.inc3},{l:'Funds',v:FUNDS_MV,c:C.s1},{l:'Cash',v:CASH_MV,c:C.silver}].map(function(it){return e('span',{key:it.l},e('span',{style:{color:C.muted}},it.l+': '),e('span',{style:{color:it.c,fontWeight:600,fontFamily:'monospace'}},fmtF(it.v)));})
+            )
+          ),
+          e(Card,null,
+            e(SH,{n:'02',title:'Real Estate',sub:'Click value to edit'}),
+            [{label:'3685 Hebron Ave, Glastonbury CT',val:curCT,setter:setCurCT,c:C.re1,rate:0.03,note:'Primary residence'},{label:'82 Alexander Ave, Silver Lake NH',val:curNH,setter:setCurNH,c:C.re2,rate:0.04,note:"100' waterfront · sold Nov 2025"}].map(function(prop){
+              return e('div',{key:prop.label,style:{marginBottom:12,padding:'12px',background:'rgba(255,255,255,0.03)',borderRadius:8,border:'1px solid '+C.border}},
+                e('div',{style:{fontSize:11,color:prop.c,fontWeight:700,marginBottom:4}},prop.label),
+                e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},prop.note),
+                e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:4}},
+                  e('span',{style:{fontSize:11,color:C.muted}},'Est. value:'),
+                  e('input',{type:'text',value:'$'+Math.round(prop.val).toLocaleString(),
+                    onChange:function(ev){var v=parseInt(ev.target.value.replace(/[$,]/g,''),10);if(!isNaN(v)&&v>0)prop.setter(v);},
+                    style:{width:148,background:'rgba(255,255,255,0.07)',border:'1px solid '+prop.c+'60',borderRadius:5,padding:'5px 9px',fontSize:13,fontWeight:700,fontFamily:'monospace',color:prop.c,outline:'none'}
+                  })
+                ),
+                e('div',{style:{fontSize:10,color:C.muted}},'25yr @'+(prop.rate*100).toFixed(0)+'%/yr → ',e('span',{style:{color:prop.c,fontFamily:'monospace',fontWeight:600}},fmt(prop.val*Math.pow(1+prop.rate,25))))
+              );
+            }),
+            e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:8,display:'flex',justifyContent:'space-between',fontSize:12}},
+              e('span',{style:{color:C.muted}},'Combined Real Estate'),
+              e('span',{style:{color:C.re2,fontWeight:700,fontFamily:'monospace'}},fmtF(curCT+curNH))
+            )
+          )
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}},
+          e(Card,null,
+            e(SH,{n:'03',title:'Annuities'}),
+            [{label:'SB Strategic Growth Plus',av:SB_CURRENT_AV,c:C.an1,extra:null,note:'Surrender ends 2032 · 10%/yr free = '+fmt(SB_CURRENT_AV*0.1)},{label:'Athene Agility 10',av:ATH_CURRENT_AV,c:C.an2,extra:'Benefit Base: '+fmtF(ATH_CURRENT_BB),note:'GLWB@6%BB='+fmt(ATH_CURRENT_BB*0.06)+'/yr at activation'}].map(function(ann){
+              return e('div',{key:ann.label,style:{marginBottom:12,padding:'12px',background:'rgba(255,255,255,0.03)',borderRadius:8,border:'1px solid '+C.border}},
+                e('div',{style:{fontSize:11,color:ann.c,fontWeight:700,marginBottom:4}},ann.label),
+                e('div',{style:{fontSize:22,fontWeight:800,fontFamily:'monospace',color:ann.c,marginBottom:ann.extra?4:0}},fmtF(ann.av)),
+                ann.extra&&e('div',{style:{fontSize:11,color:C.s2,marginBottom:3}},ann.extra),
+                e('div',{style:{fontSize:10,color:C.muted}},ann.note)
+              );
+            }),
+            e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:8,display:'flex',justifyContent:'space-between',fontSize:12}},
+              e('span',{style:{color:C.muted}},'Total Annuity Value'),
+              e('span',{style:{color:C.an1,fontWeight:700,fontFamily:'monospace'}},fmtF(SB_CURRENT_AV+ATH_CURRENT_AV))
+            )
+          ),
+          e(Card,null,
+            e(SH,{n:'04',title:'Annual Income — All Sources'}),
+            e('div',{style:{marginBottom:10}},
+              [{l:'Equity Dividends',v:CUR.equityDiv,c:C.inc1,note:null},{l:'Muni Interest (tax-free)',v:CUR.muniInc,c:C.inc3,note:null},{l:'Fund Distributions',v:CUR.fundInc,c:C.an1,note:null},{l:'Cash / MM',v:CUR.cashInc,c:C.silver,note:null},{l:'Social Security',v:ssNow,c:C.s2,note:ssNow===0?'Starts '+SS.startYear:null},{l:'Pension',v:penNow,c:C.re2,note:penNow===0?(PEN.monthly===0?'Not configured':'Starts '+PEN.startYear):null}].map(function(it){
+                return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid '+C.border+'15',fontSize:12}},
+                  e('span',{style:{color:it.v>0?C.muted:C.border}},it.l),
+                  it.v>0?e('span',{style:{color:it.c,fontFamily:'monospace',fontWeight:600}},fmtF(it.v)+'/yr'):e('span',{style:{fontSize:10,color:C.muted,fontStyle:'italic'}},it.note||'—')
+                );
+              })
+            ),
+            e('div',{style:{padding:'8px 0',display:'flex',justifyContent:'space-between',borderTop:'2px solid '+C.gold+'40',fontSize:14}},
+              e('span',{style:{color:C.gold,fontWeight:700}},'Total Annual Income'),
+              e('span',{style:{color:C.gold,fontFamily:'monospace',fontWeight:900}},fmtF(curInc)+'/yr')
+            ),
+            e('div',{style:{marginTop:8,fontSize:11,color:C.muted,textAlign:'center'}},
+              'Configure SS & Pension in the ',
+              e('span',{style:{color:C.inc3,cursor:'pointer',textDecoration:'underline'},onClick:function(){setTab('income');}},'Income tab ↗')
+            )
+          )
+        )
+      );
+    })(),
     tab==='dividends'&&e(DividendTab,null),
     tab==='live'&&e(LiveTab,null),
 
@@ -1263,6 +1401,103 @@ function App(){
           e('div',{style:{fontSize:11,color:C.muted,marginBottom:6}},'Total Maximum Annual Income (2051) — Portfolio + Athene 2032 + NH Rental'),
           e('div',{style:{fontSize:30,fontWeight:800,fontFamily:'monospace',color:C.s3}},fmt(INC_2032_NH[25].total)+'/yr'),
           e('div',{style:{fontSize:12,color:C.muted,marginTop:6}},'vs today\'s '+fmt(CUR_TOTAL)+'/yr · ',e('span',{style:{color:C.s3}},(INC_2032_NH[25].total/CUR_TOTAL).toFixed(1)+'× increase over 25 years'))
+        )
+      ),
+      e(SH,{n:'06',title:'Social Security & Pension',sub:'Configure amounts · included in All Sources table below'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
+        e(Card,{style:{borderTop:'2px solid '+C.s2}},
+          e('div',{style:{fontSize:13,fontWeight:700,color:C.s2,marginBottom:12}},'🏛 Social Security'),
+          e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}},
+            e('div',null,
+              e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},'Monthly Benefit'),
+              e('div',{style:{display:'flex',alignItems:'center',gap:6}},
+                e('span',{style:{color:C.muted}},'$'),
+                e('input',{type:'number',value:SS.monthly,min:0,max:6000,step:50,
+                  onChange:function(ev){setSS(Object.assign({},SS,{monthly:parseInt(ev.target.value)||0}));},
+                  style:{width:110,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'6px 9px',fontSize:14,fontWeight:700,color:C.s2,outline:'none',fontFamily:'monospace'}
+                }),
+                e('span',{style:{color:C.muted,fontSize:11}},'/mo')
+              )
+            ),
+            e('div',null,
+              e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},'Start Year'),
+              e('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
+                [2026,2029,2032,2034,2037].map(function(yr){
+                  return e('button',{key:yr,onClick:function(){setSS(Object.assign({},SS,{startYear:yr}));},style:{padding:'5px 9px',fontSize:11,cursor:'pointer',borderRadius:5,border:'1px solid '+(SS.startYear===yr?C.s2:C.border),background:SS.startYear===yr?C.s2+'22':'transparent',color:SS.startYear===yr?C.s2:C.muted,fontWeight:SS.startYear===yr?700:400}},yr);
+                })
+              )
+            )
+          ),
+          e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:12}},
+            e('span',{style:{fontSize:10,color:C.muted}},'COLA: '),
+            [{v:0.023,l:'2.3%'},{v:0.03,l:'3.0%'},{v:0.015,l:'1.5%'},{v:0,l:'None'}].map(function(opt){
+              return e('button',{key:String(opt.v),onClick:function(){setSS(Object.assign({},SS,{cola:opt.v}));},style:{padding:'4px 9px',fontSize:11,cursor:'pointer',borderRadius:4,border:'1px solid '+(SS.cola===opt.v?C.s2:C.border),background:SS.cola===opt.v?C.s2+'22':'transparent',color:SS.cola===opt.v?C.s2:C.muted,fontWeight:SS.cola===opt.v?700:400}},opt.l);
+            })
+          ),
+          e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:10}},
+            [{l:'Annual at start ('+SS.startYear+')',v:SS.monthly*12},{l:'Annual in 2051 (with COLA)',v:ssInc(25)}].map(function(it){
+              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}},
+                e('span',{style:{color:C.muted}},it.l),
+                e('span',{style:{color:it.v>0?C.s2:C.border,fontFamily:'monospace',fontWeight:700}},it.v>0?fmtF(it.v)+'/yr':'—')
+              );
+            })
+          )
+        ),
+        e(Card,{style:{borderTop:'2px solid '+C.re2}},
+          e('div',{style:{fontSize:13,fontWeight:700,color:C.re2,marginBottom:12}},'💼 Pension Income'),
+          e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}},
+            e('div',null,
+              e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},'Monthly Amount'),
+              e('div',{style:{display:'flex',alignItems:'center',gap:6}},
+                e('span',{style:{color:C.muted}},'$'),
+                e('input',{type:'number',value:PEN.monthly,min:0,max:20000,step:100,
+                  onChange:function(ev){setPEN(Object.assign({},PEN,{monthly:parseInt(ev.target.value)||0}));},
+                  style:{width:110,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'6px 9px',fontSize:14,fontWeight:700,color:C.re2,outline:'none',fontFamily:'monospace'}
+                }),
+                e('span',{style:{color:C.muted,fontSize:11}},'/mo')
+              )
+            ),
+            e('div',null,
+              e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},'Start Year'),
+              e('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
+                [2026,2028,2030,2032,2035].map(function(yr){
+                  return e('button',{key:yr,onClick:function(){setPEN(Object.assign({},PEN,{startYear:yr}));},style:{padding:'5px 9px',fontSize:11,cursor:'pointer',borderRadius:5,border:'1px solid '+(PEN.startYear===yr?C.re2:C.border),background:PEN.startYear===yr?C.re2+'22':'transparent',color:PEN.startYear===yr?C.re2:C.muted,fontWeight:PEN.startYear===yr?700:400}},yr);
+                })
+              )
+            )
+          ),
+          e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:12}},
+            e('span',{style:{fontSize:10,color:C.muted}},'COLA: '),
+            [{v:0,l:'None'},{v:0.02,l:'2%/yr'},{v:0.03,l:'3%/yr'}].map(function(opt){
+              return e('button',{key:'p'+String(opt.v),onClick:function(){setPEN(Object.assign({},PEN,{cola:opt.v}));},style:{padding:'4px 9px',fontSize:11,cursor:'pointer',borderRadius:4,border:'1px solid '+(PEN.cola===opt.v?C.re2:C.border),background:PEN.cola===opt.v?C.re2+'22':'transparent',color:PEN.cola===opt.v?C.re2:C.muted,fontWeight:PEN.cola===opt.v?700:400}},opt.l);
+            })
+          ),
+          PEN.monthly===0
+            ?e('div',{style:{fontSize:11,color:C.muted,fontStyle:'italic',borderTop:'1px solid '+C.border,paddingTop:10}},'Enter monthly pension amount above to include in projections.')
+            :e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:10}},
+              [{l:'Annual at start ('+PEN.startYear+')',v:PEN.monthly*12},{l:'Annual in 2051',v:penInc(25)}].map(function(it){
+                return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}},
+                  e('span',{style:{color:C.muted}},it.l),
+                  e('span',{style:{color:C.re2,fontFamily:'monospace',fontWeight:700}},fmtF(it.v)+'/yr')
+                );
+              })
+            )
+        )
+      ),
+      e(Card,{style:{marginBottom:18}},
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'All income sources combined — portfolio uses Athene 2032 start as base'),
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'po'},'Portfolio (Athene 2032)'),e(TH,{key:'ss'},'Social Security'),e(TH,{key:'pe'},'Pension'),e(TH,{key:'to'},'Grand Total')])),
+          e('tbody',null,[0,6,10,15,20,25].map(function(y){
+            var portInc=INC_2032[y].total,ssI=ssInc(y),penI=penInc(y);
+            return e('tr',{key:y,style:{borderBottom:'1px solid '+C.border+'15',background:y===6?'rgba(201,168,76,0.04)':'transparent'}},
+              e(TD,{color:y===6?C.gold:C.text},(2026+y)+(y===6?' ★':'')),
+              e(TD,{color:C.muted,mono:true},fmt(portInc)),
+              e(TD,{color:C.s2,mono:true},ssI>0?fmtF(ssI):e('span',{style:{color:C.border}},'—')),
+              e(TD,{color:C.re2,mono:true},penI>0?fmtF(penI):e('span',{style:{color:C.border}},'—')),
+              e(TD,{color:C.bull,mono:true},e('strong',null,fmt(portInc+ssI+penI)))
+            );
+          }))
         )
       )
     ),
