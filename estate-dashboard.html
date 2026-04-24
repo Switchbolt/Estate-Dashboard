@@ -761,6 +761,7 @@ async function fetchStooq(sym) {
 
 async function fetchYahoo(sym) {
   var endpoints = [
+    '/api/quote?sym=' + encodeURIComponent(sym),
     'https://query1.finance.yahoo.com/v8/finance/chart/' + sym + '?interval=1d&range=1d',
     'https://query2.finance.yahoo.com/v8/finance/chart/' + sym + '?interval=1d&range=1d',
   ];
