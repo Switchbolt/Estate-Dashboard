@@ -1,0 +1,1578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Living Trust — Total Estate Projection</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#080d18;color:#dce8f2;font-family:'Helvetica Neue',Arial,sans-serif}
+    ::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#0d1a2e}::-webkit-scrollbar-thumb{background:#1c2a3f;border-radius:3px}
+    #loading{display:flex;align-items:center;justify-content:center;height:100vh;font-size:14px;color:#5a7a96;flex-direction:column;gap:12px}
+    .spinner{width:32px;height:32px;border:3px solid #1c2a3f;border-top-color:#c9a84c;border-radius:50%;animation:spin 0.8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <div id="loading"><div class="spinner"></div><span>Loading Estate Dashboard...</span></div>
+  <div id="root" style="display:none"></div>
+  <script>
+var useState=React.useState;
+var HOLDINGS=[
+  {sym:"AAPL",qty:202,cb:2813.57,snapPrice:272.14,snapMv:54972.28},
+  {sym:"ABBV",qty:400,cb:0,snapPrice:228.44,snapMv:91376.0},
+  {sym:"ABEV",qty:1140,cb:6032.19,snapPrice:3.23,snapMv:3682.2},
+  {sym:"ABT",qty:400,cb:0,snapPrice:114.58,snapMv:45832.0},
+  {sym:"ACN",qty:83,cb:4726.85,snapPrice:196.73,snapMv:16328.59},
+  {sym:"AEP",qty:329,cb:12561.22,snapPrice:132.39,snapMv:43556.31},
+  {sym:"AFL",qty:600,cb:14959.59,snapPrice:112.46,snapMv:67476.0},
+  {sym:"ALL",qty:215,cb:19885.35,snapPrice:209.82,snapMv:45111.3},
+  {sym:"AMAT",qty:202,cb:3301.32,snapPrice:377.93,snapMv:76341.86},
+  {sym:"AMD",qty:125,cb:19910,snapPrice:213.84,snapMv:26730.0},
+  {sym:"AMZN",qty:180,cb:8577.64,snapPrice:208.56,snapMv:37540.8},
+  {sym:"APA",qty:150,cb:15091.5,snapPrice:28.62,snapMv:4293.0},
+  {sym:"ARCC",qty:1440,cb:20016,snapPrice:19.18,snapMv:27619.2},
+  {sym:"AVGO",qty:450,cb:18787.5,snapPrice:325.49,snapMv:146470.5},
+  {sym:"BA",qty:104,cb:6748.56,snapPrice:233.39,snapMv:24272.56},
+  {sym:"BABA",qty:146,cb:19901.26,snapPrice:153.11,snapMv:22354.06},
+  {sym:"BAESY",qty:800,cb:19720.93,snapPrice:117.94,snapMv:94352.0},
+  {sym:"BAM",qty:138,cb:2374.08,snapPrice:48.46,snapMv:6687.48},
+  {sym:"BCC",qty:341,cb:21073.8,snapPrice:86.66,snapMv:29551.06},
+  {sym:"BDX",qty:116,cb:13078.79,snapPrice:182.49,snapMv:21168.84},
+  {sym:"BHC",qty:790,cb:13027.73,snapPrice:6.02,snapMv:4755.8},
+  {sym:"BLK",qty:33,cb:5457.87,snapPrice:1081.05,snapMv:35674.65},
+  {sym:"BMY",qty:405,cb:12555,snapPrice:61.6,snapMv:24948.0},
+  {sym:"BN",qty:828,cb:9997.38,snapPrice:44.99,snapMv:37251.72},
+  {sym:"CAT",qty:128,cb:8953.98,snapPrice:768.23,snapMv:98333.44},
+  {sym:"CL",qty:426,cb:19876.03,snapPrice:98.11,snapMv:41794.86},
+  {sym:"CMP",qty:144,cb:13240.95,snapPrice:24.43,snapMv:3517.92},
+  {sym:"COF",qty:237,cb:9475.81,snapPrice:196.56,snapMv:46584.72},
+  {sym:"COP",qty:246,cb:14886.45,snapPrice:110.59,snapMv:27205.14},
+  {sym:"CTVA",qty:440,cb:12951.5,snapPrice:77.97,snapMv:34306.8},
+  {sym:"CVS",qty:293,cb:17694.5,snapPrice:74.18,snapMv:21734.74},
+  {sym:"DD",qty:274,cb:7036.92,snapPrice:51.07,snapMv:13993.18},
+  {sym:"DE",qty:85,cb:6608.75,snapPrice:644.54,snapMv:54785.9},
+  {sym:"DELL",qty:331,cb:9555.66,snapPrice:119.78,snapMv:39647.18},
+  {sym:"ED",qty:360,cb:21131.34,snapPrice:111.01,snapMv:39963.6},
+  {sym:"ELV",qty:75,cb:10323.85,snapPrice:327.14,snapMv:24535.5},
+  {sym:"EMBC",qty:23,cb:304.42,snapPrice:10.28,snapMv:236.44},
+  {sym:"EMR",qty:1120,cb:0,snapPrice:150.88,snapMv:168985.6},
+  {sym:"EOG",qty:212,cb:20036.65,snapPrice:123.7,snapMv:26224.4},
+  {sym:"FBIN",qty:340,cb:4409.41,snapPrice:56.19,snapMv:19104.6},
+  {sym:"FDX",qty:101,cb:8194.13,snapPrice:386.56,snapMv:39042.56},
+  {sym:"FIS",qty:150,cb:21901.5,snapPrice:48.11,snapMv:7216.5},
+  {sym:"FITB",qty:1134,cb:0,snapPrice:50.2,snapMv:56926.8},
+  {sym:"FNV",qty:210,cb:8683.5,snapPrice:273.32,snapMv:57397.2},
+  {sym:"FTRE",qty:100,cb:1227.68,snapPrice:10.32,snapMv:1032.0},
+  {sym:"GIS",qty:423,cb:16602.75,snapPrice:45.42,snapMv:19212.66},
+  {sym:"GOOG",qty:220,cb:2862.12,snapPrice:310.92,snapMv:68402.4},
+  {sym:"HBAN",qty:1663,cb:13622.58,snapPrice:17.02,snapMv:28304.26},
+  {sym:"HD",qty:73,cb:2874.74,snapPrice:384.48,snapMv:28067.04},
+  {sym:"HON",qty:140,cb:5580.23,snapPrice:243.61,snapMv:34105.4},
+  {sym:"HPQ",qty:116,cb:0,snapPrice:18.2,snapMv:2111.2},
+  {sym:"ICE",qty:180,cb:18315,snapPrice:155.36,snapMv:27964.8},
+  {sym:"INTC",qty:494,cb:10907.52,snapPrice:46.12,snapMv:22783.28},
+  {sym:"IP",qty:505,cb:11198.24,snapPrice:44.02,snapMv:22230.1},
+  {sym:"ITW",qty:140,cb:10981.25,snapPrice:294.56,snapMv:41238.4},
+  {sym:"JNJ",qty:400,cb:0,snapPrice:246.28,snapMv:98512.0},
+  {sym:"JPM",qty:183,cb:6074.68,snapPrice:297.3,snapMv:54405.9},
+  {sym:"KEY",qty:1400,cb:18551.59,snapPrice:21.0,snapMv:29400.0},
+  {sym:"KMB",qty:195,cb:13275.73,snapPrice:111.11,snapMv:21666.45},
+  {sym:"KW",qty:1122,cb:15894.63,snapPrice:10.88,snapMv:12207.36},
+  {sym:"LH",qty:100,cb:6962.32,snapPrice:287.13,snapMv:28713.0},
+  {sym:"LIN",qty:91,cb:14873.95,snapPrice:504.0,snapMv:45864.0},
+  {sym:"LMT",qty:77,cb:20059.49,snapPrice:664.43,snapMv:51161.11},
+  {sym:"MBC",qty:340,cb:618.58,snapPrice:10.83,snapMv:3682.2},
+  {sym:"MCHP",qty:343,cb:7405.02,snapPrice:75.93,snapMv:26043.99},
+  {sym:"MDLZ",qty:475,cb:10280.54,snapPrice:61.13,snapMv:29036.75},
+  {sym:"MMM",qty:140,cb:9313.92,snapPrice:166.46,snapMv:23304.4},
+  {sym:"MSFT",qty:96,cb:16835.76,snapPrice:389.0,snapMv:37344.0},
+  {sym:"NEE",qty:1480,cb:28891.03,snapPrice:95.68,snapMv:141606.4},
+  {sym:"NSC",qty:106,cb:6595.32,snapPrice:316.09,snapMv:33505.54},
+  {sym:"NSRGY",qty:227,cb:12587.15,snapPrice:107.3,snapMv:24357.1},
+  {sym:"NVDA",qty:990,cb:3329.04,snapPrice:192.85,snapMv:190921.5},
+  {sym:"NVS",qty:293,cb:13238.6,snapPrice:167.11,snapMv:48963.23},
+  {sym:"OGE",qty:658,cb:17132.39,snapPrice:48.39,snapMv:31840.62},
+  {sym:"OGS",qty:314,cb:6072.61,snapPrice:85.39,snapMv:26812.46},
+  {sym:"OKE",qty:387,cb:7439.3,snapPrice:82.89,snapMv:32078.43},
+  {sym:"ORCL",qty:316,cb:10212,snapPrice:146.14,snapMv:46180.24},
+  {sym:"ORLY",qty:735,cb:3741.15,snapPrice:94.33,snapMv:69332.55},
+  {sym:"PANW",qty:330,cb:5555.99,snapPrice:141.67,snapMv:46751.1},
+  {sym:"PEP",qty:182,cb:12435.15,snapPrice:169.54,snapMv:30856.28},
+  {sym:"PFE",qty:81,cb:4152.87,snapPrice:27.14,snapMv:2198.34},
+  {sym:"PG",qty:300,cb:0,snapPrice:165.28,snapMv:49584.0},
+  {sym:"PKG",qty:198,cb:13166.61,snapPrice:228.89,snapMv:45320.22},
+  {sym:"PPG",qty:178,cb:6397.32,snapPrice:125.55,snapMv:22347.9},
+  {sym:"RTX",qty:282,cb:14351.14,snapPrice:198.46,snapMv:55965.72},
+  {sym:"SDZNY",qty:58,cb:722.74,snapPrice:85.15,snapMv:4938.7},
+  {sym:"SNY",qty:570,cb:20128.29,snapPrice:47.31,snapMv:26966.7},
+  {sym:"SO",qty:440,cb:20242.22,snapPrice:95.81,snapMv:42156.4},
+  {sym:"SOLS",qty:35,cb:344.37,snapPrice:79.09,snapMv:2768.15},
+  {sym:"SOLV",qty:35,cb:1711.08,snapPrice:73.42,snapMv:2569.7},
+  {sym:"SOUHY",qty:788,cb:8568.68,snapPrice:16.06,snapMv:12655.28},
+  {sym:"SRE",qty:54,cb:3429.72,snapPrice:93.97,snapMv:5074.38},
+  {sym:"TEVA",qty:409,cb:15075.74,snapPrice:33.92,snapMv:13873.28},
+  {sym:"TJX",qty:417,cb:6228.94,snapPrice:157.66,snapMv:65744.22},
+  {sym:"TLRY",qty:377,cb:26842.4,snapPrice:7.92,snapMv:2985.84},
+  {sym:"TSEM",qty:806,cb:7195.7,snapPrice:126.01,snapMv:101564.06},
+  {sym:"TSM",qty:169,cb:20511.2,snapPrice:385.75,snapMv:65191.75},
+  {sym:"UNP",qty:135,cb:6931.57,snapPrice:266.66,snapMv:35999.1},
+  {sym:"UPS",qty:155,cb:9896.75,snapPrice:115.37,snapMv:17882.35},
+  {sym:"VFC",qty:339,cb:9631.62,snapPrice:19.77,snapMv:6702.03},
+  {sym:"VST",qty:1200,cb:15932.56,snapPrice:171.62,snapMv:205944.0},
+  {sym:"WAT",qty:15,cb:0,snapPrice:326.3,snapMv:4894.5},
+  {sym:"WCN",qty:251,cb:10985.27,snapPrice:165.48,snapMv:41535.48},
+  {sym:"WDS",qty:145,cb:3120.4,snapPrice:19.57,snapMv:2837.65},
+  {sym:"WMB",qty:500,cb:9947.48,snapPrice:73.5,snapMv:36750.0},
+  {sym:"XOM",qty:600,cb:0,snapPrice:149.26,snapMv:89556.0},
+  {sym:"PDI",qty:1489,cb:36260.91,snapPrice:18.49,snapMv:27531.61},
+  {sym:"SCHE",qty:640,cb:14976,snapPrice:35.75,snapMv:22880.0},
+  {sym:"XHB",qty:368,cb:10238.93,snapPrice:117.22,snapMv:43136.96}
+];
+var DIVIDENDS=[
+  {sym:"PDI",annual:3909.54,freq:"M",months:[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],perPay:325.8,note:"PIMCO CEF monthly dist."},
+  {sym:"ABT",annual:1031.22,freq:"Q",months:[1, 4, 7, 10],perPay:257.81,note:"Abbott Labs"},
+  {sym:"ARCC",annual:2770.19,freq:"Q",months:[1, 4, 7, 10],perPay:692.55,note:"Ares Capital BDC"},
+  {sym:"COF",annual:717.41,freq:"Q",months:[1, 4, 7, 10],perPay:179.35,note:"Capital One"},
+  {sym:"EOG",annual:868.01,freq:"Q",months:[1, 4, 7, 10],perPay:217.0,note:"EOG Resources incl. variable"},
+  {sym:"FITB",annual:1696.42,freq:"Q",months:[1, 4, 7, 10],perPay:424.11,note:"Fifth Third Bancorp"},
+  {sym:"HBAN",annual:973.66,freq:"Q",months:[1, 4, 7, 10],perPay:243.41,note:"Huntington Bancshares"},
+  {sym:"ITW",annual:898.99,freq:"Q",months:[1, 4, 7, 10],perPay:224.75,note:"Illinois Tool Works"},
+  {sym:"JPM",annual:1050.04,freq:"Q",months:[1, 4, 7, 10],perPay:262.51,note:"JPMorgan Chase"},
+  {sym:"KMB",annual:1018.3,freq:"Q",months:[1, 4, 7, 10],perPay:254.57,note:"Kimberly-Clark"},
+  {sym:"OGE",annual:1143.09,freq:"Q",months:[1, 4, 7, 10],perPay:285.77,note:"OGE Energy"},
+  {sym:"PEP",annual:1064.53,freq:"Q",months:[1, 4, 7, 10],perPay:266.13,note:"PepsiCo"},
+  {sym:"UNP",annual:745.18,freq:"Q",months:[1, 4, 7, 10],perPay:186.29,note:"Union Pacific"},
+  {sym:"VFC",annual:113.93,freq:"Q",months:[1, 4, 7, 10],perPay:28.48,note:"VF Corp (reduced)"},
+  {sym:"AAPL",annual:214.39,freq:"Q",months:[2, 5, 8, 11],perPay:53.6,note:"Apple"},
+  {sym:"ABBV",annual:2814.38,freq:"Q",months:[2, 5, 8, 11],perPay:703.6,note:"AbbVie"},
+  {sym:"ACN",annual:494.77,freq:"Q",months:[2, 5, 8, 11],perPay:123.69,note:"Accenture"},
+  {sym:"BAM",annual:266.14,freq:"Q",months:[2, 5, 8, 11],perPay:66.53,note:"Brookfield Asset Mgmt"},
+  {sym:"BMY",annual:1035.34,freq:"Q",months:[2, 5, 8, 11],perPay:258.83,note:"Bristol-Myers Squibb"},
+  {sym:"BN",annual:227.24,freq:"Q",months:[2, 5, 8, 11],perPay:56.81,note:"Brookfield Corp"},
+  {sym:"CAT",annual:786.66,freq:"Q",months:[2, 5, 8, 11],perPay:196.66,note:"Caterpillar"},
+  {sym:"CVS",annual:754.2,freq:"Q",months:[2, 5, 8, 11],perPay:188.55,note:"CVS Health"},
+  {sym:"DELL",annual:681.93,freq:"Q",months:[2, 5, 8, 11],perPay:170.48,note:"Dell Technologies"},
+  {sym:"GOOG",annual:184.69,freq:"Q",months:[2, 5, 8, 11],perPay:46.17,note:"Alphabet (started 2024)"},
+  {sym:"GIS",annual:1050.95,freq:"Q",months:[2, 5, 8, 11],perPay:262.74,note:"General Mills"},
+  {sym:"OGS",annual:852.62,freq:"Q",months:[2, 5, 8, 11],perPay:213.16,note:"ONE Gas"},
+  {sym:"OKE",annual:1571.82,freq:"Q",months:[2, 5, 8, 11],perPay:392.95,note:"ONEOK"},
+  {sym:"PG",annual:1304.06,freq:"Q",months:[2, 5, 8, 11],perPay:326.01,note:"Procter & Gamble"},
+  {sym:"VST",annual:1091.5,freq:"Q",months:[2, 5, 8, 11],perPay:272.88,note:"Vistra Corp"},
+  {sym:"ORCL",annual:623.43,freq:"Q",months:[2, 5, 8, 11],perPay:155.86,note:"Oracle"},
+  {sym:"AEP",annual:1280.55,freq:"Q",months:[3, 6, 9, 12],perPay:320.14,note:"American Electric Power"},
+  {sym:"AFL",annual:1443.99,freq:"Q",months:[3, 6, 9, 12],perPay:361.0,note:"Aflac"},
+  {sym:"ALL",annual:942.82,freq:"Q",months:[3, 6, 9, 12],perPay:235.71,note:"Allstate"},
+  {sym:"AMAT",annual:374.08,freq:"Q",months:[3, 6, 9, 12],perPay:93.52,note:"Applied Materials"},
+  {sym:"BCC",annual:316.2,freq:"Q",months:[3, 6, 9, 12],perPay:79.05,note:"Boise Cascade"},
+  {sym:"BDX",annual:480.54,freq:"Q",months:[3, 6, 9, 12],perPay:120.14,note:"Becton Dickinson"},
+  {sym:"BLK",annual:681.39,freq:"Q",months:[3, 6, 9, 12],perPay:170.35,note:"BlackRock"},
+  {sym:"CL",annual:915.31,freq:"Q",months:[3, 6, 9, 12],perPay:228.83,note:"Colgate-Palmolive"},
+  {sym:"COP",annual:827.03,freq:"Q",months:[3, 6, 9, 12],perPay:206.76,note:"ConocoPhillips"},
+  {sym:"CTVA",annual:322.49,freq:"Q",months:[3, 6, 9, 12],perPay:80.62,note:"Corteva"},
+  {sym:"DD",annual:222.49,freq:"Q",months:[3, 6, 9, 12],perPay:55.62,note:"DuPont"},
+  {sym:"DE",annual:536.9,freq:"Q",months:[3, 6, 9, 12],perPay:134.22,note:"Deere & Co"},
+  {sym:"ED",annual:1290.84,freq:"Q",months:[3, 6, 9, 12],perPay:322.71,note:"Consolidated Edison"},
+  {sym:"ELV",annual:493.17,freq:"Q",months:[3, 6, 9, 12],perPay:123.29,note:"Elevance Health"},
+  {sym:"EMR",annual:2517.89,freq:"Q",months:[3, 6, 9, 12],perPay:629.47,note:"Emerson Electric"},
+  {sym:"FDX",annual:581.74,freq:"Q",months:[3, 6, 9, 12],perPay:145.44,note:"FedEx"},
+  {sym:"FIS",annual:258.37,freq:"Q",months:[3, 6, 9, 12],perPay:64.59,note:"Fidelity Natl Info"},
+  {sym:"FNV",annual:390.3,freq:"Q",months:[3, 6, 9, 12],perPay:97.58,note:"Franco-Nevada"},
+  {sym:"HD",annual:676.41,freq:"Q",months:[3, 6, 9, 12],perPay:169.1,note:"Home Depot"},
+  {sym:"HON",annual:665.05,freq:"Q",months:[3, 6, 9, 12],perPay:166.26,note:"Honeywell"},
+  {sym:"ICE",annual:377.53,freq:"Q",months:[3, 6, 9, 12],perPay:94.38,note:"Intercontinental Exchange"},
+  {sym:"IP",annual:878.09,freq:"Q",months:[3, 6, 9, 12],perPay:219.52,note:"International Paper"},
+  {sym:"JNJ",annual:2108.16,freq:"Q",months:[3, 6, 9, 12],perPay:527.04,note:"Johnson & Johnson"},
+  {sym:"KEY",annual:1084.86,freq:"Q",months:[3, 6, 9, 12],perPay:271.21,note:"KeyCorp"},
+  {sym:"KW",annual:537.11,freq:"Q",months:[3, 6, 9, 12],perPay:134.28,note:"Kennedy-Wilson Holdings"},
+  {sym:"LH",annual:292.87,freq:"Q",months:[3, 6, 9, 12],perPay:73.22,note:"Labcorp"},
+  {sym:"LIN",annual:554.95,freq:"Q",months:[3, 6, 9, 12],perPay:138.74,note:"Linde PLC"},
+  {sym:"LMT",annual:1074.38,freq:"Q",months:[3, 6, 9, 12],perPay:268.6,note:"Lockheed Martin"},
+  {sym:"MCHP",annual:609.43,freq:"Q",months:[3, 6, 9, 12],perPay:152.36,note:"Microchip Technology"},
+  {sym:"MDLZ",annual:987.26,freq:"Q",months:[3, 6, 9, 12],perPay:246.81,note:"Mondelez International"},
+  {sym:"MMM",annual:435.78,freq:"Q",months:[3, 6, 9, 12],perPay:108.94,note:"3M Company"},
+  {sym:"MSFT",annual:343.56,freq:"Q",months:[3, 6, 9, 12],perPay:85.89,note:"Microsoft"},
+  {sym:"NEE",annual:3823.36,freq:"Q",months:[3, 6, 9, 12],perPay:955.84,note:"NextEra Energy"},
+  {sym:"NSC",annual:572.95,freq:"Q",months:[3, 6, 9, 12],perPay:143.24,note:"Norfolk Southern"},
+  {sym:"PKG",annual:956.25,freq:"Q",months:[3, 6, 9, 12],perPay:239.06,note:"Packaging Corp"},
+  {sym:"PPG",annual:500.6,freq:"Q",months:[3, 6, 9, 12],perPay:125.15,note:"PPG Industries"},
+  {sym:"RTX",annual:744.35,freq:"Q",months:[3, 6, 9, 12],perPay:186.09,note:"RTX Corp"},
+  {sym:"SO",annual:1323.7,freq:"Q",months:[3, 6, 9, 12],perPay:330.93,note:"Southern Company"},
+  {sym:"SRE",annual:140.04,freq:"Q",months:[3, 6, 9, 12],perPay:35.01,note:"Sempra"},
+  {sym:"TJX",annual:703.46,freq:"Q",months:[3, 6, 9, 12],perPay:175.87,note:"TJX Companies"},
+  {sym:"TSM",annual:678.0,freq:"Q",months:[3, 6, 9, 12],perPay:169.5,note:"Taiwan Semiconductor ADR"},
+  {sym:"UPS",annual:1004.97,freq:"Q",months:[3, 6, 9, 12],perPay:251.24,note:"United Parcel Service"},
+  {sym:"WCN",annual:357.2,freq:"Q",months:[3, 6, 9, 12],perPay:89.3,note:"Waste Connections"},
+  {sym:"WMB",annual:1058.4,freq:"Q",months:[3, 6, 9, 12],perPay:264.6,note:"Williams Companies"},
+  {sym:"XOM",annual:2507.57,freq:"Q",months:[3, 6, 9, 12],perPay:626.89,note:"Exxon Mobil"},
+  {sym:"XHB",annual:289.02,freq:"Q",months:[3, 6, 9, 12],perPay:72.25,note:"SPDR S&P Homebuilders ETF"},
+  {sym:"ABEV",annual:634.78,freq:"S",months:[3, 9],perPay:317.39,note:"Ambev ADR semi-annual"},
+  {sym:"BAESY",annual:1953.09,freq:"S",months:[3, 9],perPay:976.54,note:"BAE Systems ADR"},
+  {sym:"SCHE",annual:606.32,freq:"S",months:[6, 12],perPay:303.16,note:"Schwab EM ETF semi-annual"},
+  {sym:"SOUHY",annual:313.84,freq:"S",months:[3, 9],perPay:156.92,note:"South32 ADR semi-annual"},
+  {sym:"WDS",annual:154.67,freq:"S",months:[3, 9],perPay:77.33,note:"Woodside Energy ADR"},
+  {sym:"BABA",annual:152.01,freq:"A",months:[7],perPay:152.01,note:"Alibaba annual ADR"},
+  {sym:"NSRGY",annual:857.37,freq:"A",months:[4],perPay:857.37,note:"Nestle ADR April"},
+  {sym:"NVS",annual:1434.62,freq:"A",months:[2],perPay:1434.62,note:"Novartis ADR Feb"},
+  {sym:"SNY",annual:1264.75,freq:"A",months:[5],perPay:1264.75,note:"Sanofi ADR May"},
+  {sym:"SDZNY",annual:41.49,freq:"A",months:[4],perPay:41.49,note:"Sandoz ADR annual"},
+  {sym:"NVDA",annual:38.18,freq:"Q",months:[1, 4, 7, 10],perPay:9.54,note:"NVIDIA nominal"},
+  {sym:"AVGO",annual:1142.47,freq:"Q",months:[3, 6, 9, 12],perPay:285.62,note:"Broadcom"},
+  {sym:"APA",annual:147.68,freq:"Q",months:[1, 4, 7, 10],perPay:36.92,note:"APA Corp"},
+  {sym:"PFE",annual:141.77,freq:"Q",months:[3, 6, 9, 12],perPay:35.44,note:"Pfizer"},
+  {sym:"TEVA",annual:41.62,freq:"Q",months:[3, 6, 9, 12],perPay:10.4,note:"Teva Pharma"}
+];
+var MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var DIV_MONTH_TOTALS=[3894.99, 5248.94, 11975.8, 4793.85, 5079.07, 10750.78, 4047.0, 3814.32, 11975.8, 3894.99, 3814.32, 10750.78];
+var DIV_ANNUAL_TOTAL=80040.7;
+// ─── Pure SVG Chart Components ────────────────────────────────────────────────
+function useContainerWidth(ref) {
+  var _s = React.useState(780);
+  var w = _s[0], setW = _s[1];
+  React.useEffect(function () {
+    if (!ref.current) return;
+    var ro = new ResizeObserver(function (e) { setW(Math.max(200, e[0].contentRect.width)); });
+    ro.observe(ref.current);
+    return function () { ro.disconnect(); };
+  }, []);
+  return w;
+}
+
+var PL = 64, PR = 20, PT = 14, PB = 38;
+
+function scaleY(vMin, vMax, h) {
+  var range = vMax - vMin || 1;
+  return function (v) { return PT + (h - PT - PB) * (1 - (v - vMin) / range); };
+}
+
+function yFmtTick(v) {
+  if (v >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return '$' + (v / 1e3).toFixed(0) + 'K';
+  return '$' + v;
+}
+
+function SVGTooltip(_ref) {
+  var x = _ref.x, y = _ref.y, items = _ref.items, label = _ref.label, W = _ref.W;
+  if (!items || !items.length) return null;
+  var bh = items.length * 20 + 38;
+  var bx = x + 14;
+  if (bx + 186 > W) bx = x - 200;
+  var by = Math.max(0, Math.min(y - bh / 2, (PB + PT) * 2));
+  return React.createElement('foreignObject', { x: bx, y: by, width: 186, height: bh },
+    React.createElement('div', {
+      xmlns: 'http://www.w3.org/1999/xhtml',
+      style: { background:'#0d1a2e', border:'1px solid #1c2a3f', borderRadius:8,
+        padding:'9px 12px', fontSize:11, color:'#dce8f2', pointerEvents:'none', userSelect:'none' }
+    },
+      React.createElement('div', { style:{color:'#c9a84c',fontWeight:700,marginBottom:6} }, label),
+      items.map(function (it, i) {
+        return React.createElement('div', { key:i, style:{display:'flex',justifyContent:'space-between',gap:14,marginBottom:2} },
+          React.createElement('span', { style:{color:it.color} }, it.name),
+          React.createElement('span', { style:{fontFamily:'monospace'} }, it.value)
+        );
+      })
+    )
+  );
+}
+
+function Legend(_ref) {
+  var series = _ref.series;
+  return React.createElement('div', { style:{display:'flex',gap:14,flexWrap:'wrap',paddingBottom:8,fontSize:11} },
+    series.filter(function(s){return !s.hidden;}).map(function (s) {
+      return React.createElement('div', { key:s.key, style:{display:'flex',alignItems:'center',gap:5} },
+        React.createElement('div', { style:{width:18,height:3,background:s.color,borderRadius:2} }),
+        React.createElement('span', { style:{color:'#9ab0c8'} }, s.name)
+      );
+    })
+  );
+}
+
+function LineChart(_ref) {
+  var data=_ref.data, series=_ref.series, xKey=_ref.xKey, xFmt=_ref.xFmt,
+      H=_ref.H, refLineX=_ref.refLineX, refLineLabel=_ref.refLineLabel;
+  var cRef = React.useRef(null);
+  var W = useContainerWidth(cRef);
+  var _s = React.useState(null), hover = _s[0], setHover = _s[1];
+  var h = H || 300, pw = W - PL - PR;
+  var allVals = data.flatMap(function(d){ return series.map(function(s){ return d[s.key]||0; }); });
+  var vMax = Math.max.apply(null,allVals)*1.08;
+  var sx = function(i){ return PL + (i/(data.length-1))*pw; };
+  var sy = scaleY(0, vMax, h);
+  var nTicks = 5;
+  function getIdx(e) {
+    var r = e.currentTarget.getBoundingClientRect();
+    var idx = Math.round(((e.clientX - r.left - PL) / pw) * (data.length-1));
+    return Math.max(0, Math.min(data.length-1, idx));
+  }
+  function onMove(e) {
+    var idx = getIdx(e);
+    var d = data[idx];
+    setHover({ idx:idx, x:sx(idx),
+      items: series.filter(function(s){return !s.hidden;}).map(function(s){
+        return {name:s.name, color:s.color, value:yFmtTick(d[s.key]||0), y:sy(d[s.key]||0), key:s.key};
+      }),
+      label: d[xKey]
+    });
+  }
+  return React.createElement('div', { ref:cRef, style:{width:'100%'} },
+    React.createElement('svg', { width:W, height:h,
+      onMouseMove:onMove, onMouseLeave:function(){ setHover(null); } },
+      Array.from({length:nTicks+1}, function(_,i){
+        var v=(vMax/nTicks)*i, y=sy(v);
+        return React.createElement('g',{key:i},
+          React.createElement('line',{x1:PL,x2:PL+pw,y1:y,y2:y,stroke:'#1c2a3f',strokeDasharray:'3 3'}),
+          React.createElement('text',{x:PL-6,y:y+4,textAnchor:'end',fontSize:10,fill:'#5a7a96'},yFmtTick(v))
+        );
+      }),
+      data.map(function(d,i){
+        var lbl=xFmt?xFmt(d[xKey]):d[xKey];
+        if(!lbl) return null;
+        return React.createElement('text',{key:i,x:sx(i),y:h-6,textAnchor:'middle',fontSize:10,fill:'#5a7a96'},lbl);
+      }),
+      refLineX!=null&&(function(){
+        var idx=data.findIndex(function(d){return d[xKey]===refLineX;});
+        if(idx<0) return null;
+        return React.createElement('g',null,
+          React.createElement('line',{x1:sx(idx),x2:sx(idx),y1:PT,y2:h-PB,stroke:'#c9a84c',strokeDasharray:'4 3',strokeWidth:1.5}),
+          React.createElement('text',{x:sx(idx)+4,y:PT+10,fontSize:10,fill:'#c9a84c'},refLineLabel)
+        );
+      })(),
+      series.filter(function(s){return !s.hidden;}).map(function(s){
+        var pts=data.map(function(d,i){ return sx(i).toFixed(1)+','+sy(d[s.key]||0).toFixed(1); }).join(' ');
+        return React.createElement('polyline',{key:s.key,points:pts,fill:'none',stroke:s.color,
+          strokeWidth:s.width||2,strokeDasharray:s.dashed?'5 3':undefined,
+          strokeLinecap:'round',strokeLinejoin:'round'});
+      }),
+      hover&&React.createElement('g',null,
+        React.createElement('line',{x1:hover.x,x2:hover.x,y1:PT,y2:h-PB,
+          stroke:'rgba(255,255,255,0.2)',strokeWidth:1,strokeDasharray:'3 3'}),
+        hover.items.map(function(it){
+          return React.createElement('g',{key:it.key},
+            React.createElement('circle',{cx:hover.x,cy:it.y,r:5,fill:'#080d18',stroke:it.color,strokeWidth:2}),
+            React.createElement('circle',{cx:hover.x,cy:it.y,r:2.5,fill:it.color})
+          );
+        }),
+        React.createElement(SVGTooltip,{x:hover.x,y:h/3,items:hover.items,label:hover.label,W:W})
+      )
+    )
+  );
+}
+
+function AreaChart(_ref) {
+  var data=_ref.data, series=_ref.series, xKey=_ref.xKey, xFmt=_ref.xFmt,
+      H=_ref.H, refLineX=_ref.refLineX, refLineLabel=_ref.refLineLabel;
+  var cRef = React.useRef(null);
+  var W = useContainerWidth(cRef);
+  var _s = React.useState(null), hover = _s[0], setHover = _s[1];
+  var h = H||300, pw = W-PL-PR;
+  var allVals = data.flatMap(function(d){ return series.map(function(s){ return d[s.key]||0; }); });
+  var vMax = Math.max.apply(null,allVals)*1.08;
+  var sx = function(i){ return PL+(i/(data.length-1))*pw; };
+  var sy = scaleY(0, vMax, h);
+  var nTicks = 5;
+  function linePts(s){ return data.map(function(d,i){ return sx(i).toFixed(1)+','+sy(d[s.key]||0).toFixed(1); }).join(' '); }
+  function areaD(s){
+    var pts=data.map(function(d,i){ return sx(i).toFixed(1)+','+sy(d[s.key]||0).toFixed(1); });
+    return 'M'+pts.join(' L')+' L'+sx(data.length-1).toFixed(1)+','+(h-PB)+' L'+sx(0).toFixed(1)+','+(h-PB)+' Z';
+  }
+  function getIdx(e){
+    var r=e.currentTarget.getBoundingClientRect();
+    return Math.max(0,Math.min(data.length-1,Math.round(((e.clientX-r.left-PL)/pw)*(data.length-1))));
+  }
+  function onMove(e){
+    var idx=getIdx(e), d=data[idx];
+    setHover({ idx:idx, x:sx(idx),
+      items:series.filter(function(s){return !s.hidden;}).map(function(s){
+        return {name:s.name,color:s.color,value:yFmtTick(d[s.key]||0),y:sy(d[s.key]||0),key:s.key};
+      }),
+      label:d[xKey]
+    });
+  }
+  return React.createElement('div',{ref:cRef,style:{width:'100%'}},
+    React.createElement('svg',{width:W,height:h,onMouseMove:onMove,onMouseLeave:function(){setHover(null);}},
+      React.createElement('defs',null,
+        series.map(function(s){
+          return React.createElement('linearGradient',{key:'g'+s.key,id:'ga'+s.key,x1:'0',y1:'0',x2:'0',y2:'1'},
+            React.createElement('stop',{offset:'5%',stopColor:s.color,stopOpacity:s.fillOpacity||0.2}),
+            React.createElement('stop',{offset:'95%',stopColor:s.color,stopOpacity:0.02})
+          );
+        })
+      ),
+      Array.from({length:nTicks+1},function(_,i){
+        var v=(vMax/nTicks)*i, y=sy(v);
+        return React.createElement('g',{key:i},
+          React.createElement('line',{x1:PL,x2:PL+pw,y1:y,y2:y,stroke:'#1c2a3f',strokeDasharray:'3 3'}),
+          React.createElement('text',{x:PL-6,y:y+4,textAnchor:'end',fontSize:10,fill:'#5a7a96'},yFmtTick(v))
+        );
+      }),
+      data.map(function(d,i){
+        var lbl=xFmt?xFmt(d[xKey]):d[xKey];
+        if(!lbl) return null;
+        return React.createElement('text',{key:i,x:sx(i),y:h-6,textAnchor:'middle',fontSize:10,fill:'#5a7a96'},lbl);
+      }),
+      refLineX!=null&&(function(){
+        var idx=data.findIndex(function(d){return d[xKey]===refLineX;});
+        if(idx<0) return null;
+        return React.createElement('g',null,
+          React.createElement('line',{x1:sx(idx),x2:sx(idx),y1:PT,y2:h-PB,stroke:'#c9a84c',strokeDasharray:'4 3',strokeWidth:1.5}),
+          React.createElement('text',{x:sx(idx)+4,y:PT+10,fontSize:10,fill:'#c9a84c'},refLineLabel)
+        );
+      })(),
+      series.map(function(s){
+        if(s.noFill){
+          return React.createElement('polyline',{key:s.key,points:linePts(s),fill:'none',stroke:s.color,
+            strokeWidth:s.width||2,strokeDasharray:s.dashed?'4 3':undefined});
+        }
+        return React.createElement('g',{key:s.key},
+          React.createElement('path',{d:areaD(s),fill:'url(#ga'+s.key+')',stroke:'none'}),
+          React.createElement('polyline',{points:linePts(s),fill:'none',stroke:s.color,
+            strokeWidth:s.width||2,strokeDasharray:s.dashed?'4 3':undefined})
+        );
+      }),
+      hover&&React.createElement('g',null,
+        React.createElement('line',{x1:hover.x,x2:hover.x,y1:PT,y2:h-PB,
+          stroke:'rgba(255,255,255,0.2)',strokeWidth:1,strokeDasharray:'3 3'}),
+        hover.items.map(function(it){
+          return React.createElement('g',{key:it.key},
+            React.createElement('circle',{cx:hover.x,cy:it.y,r:5,fill:'#080d18',stroke:it.color,strokeWidth:2}),
+            React.createElement('circle',{cx:hover.x,cy:it.y,r:2.5,fill:it.color})
+          );
+        }),
+        React.createElement(SVGTooltip,{x:hover.x,y:h/3,items:hover.items,label:hover.label,W:W})
+      )
+    )
+  );
+}
+
+function StackedAreaChart(_ref) {
+  var data=_ref.data, series=_ref.series, xKey=_ref.xKey, xFmt=_ref.xFmt,
+      H=_ref.H, refLineX=_ref.refLineX, refLineLabel=_ref.refLineLabel;
+  var cRef = React.useRef(null);
+  var W = useContainerWidth(cRef);
+  var _s = React.useState(null), hover = _s[0], setHover = _s[1];
+  var h = H||300, pw = W-PL-PR;
+  var keys = series.map(function(s){ return s.key; });
+  var totals = data.map(function(d){ return keys.reduce(function(s,k){ return s+(d[k]||0); },0); });
+  var vMax = Math.max.apply(null,totals)*1.06;
+  var sx = function(i){ return PL+(i/(data.length-1))*pw; };
+  var sy = scaleY(0, vMax, h);
+  var nTicks = 5;
+  function stackedPath(si){
+    var topPts=data.map(function(d,i){
+      var v=keys.slice(0,si+1).reduce(function(s,k){return s+(d[k]||0);},0);
+      return sx(i).toFixed(1)+','+sy(v).toFixed(1);
+    });
+    var botPts=data.map(function(d,i){
+      var v=keys.slice(0,si).reduce(function(s,k){return s+(d[k]||0);},0);
+      return sx(i).toFixed(1)+','+sy(v).toFixed(1);
+    }).reverse();
+    return 'M'+topPts.join(' L')+' L'+botPts.join(' L')+' Z';
+  }
+  function getIdx(e){
+    var r=e.currentTarget.getBoundingClientRect();
+    return Math.max(0,Math.min(data.length-1,Math.round(((e.clientX-r.left-PL)/pw)*(data.length-1))));
+  }
+  function onMove(e){
+    var idx=getIdx(e), d=data[idx];
+    var total=keys.reduce(function(s,k){return s+(d[k]||0);},0);
+    var items=series.filter(function(s){return d[s.key]>0;}).map(function(s){
+      var cumulative=keys.slice(0,keys.indexOf(s.key)+1).reduce(function(sm,k){return sm+(d[k]||0);},0);
+      return {name:s.name,color:s.color,value:yFmtTick(d[s.key]||0),y:sy(cumulative),key:s.key};
+    });
+    setHover({idx:idx, x:sx(idx),
+      items:[{name:'Total',color:'#c9a84c',value:yFmtTick(total),y:sy(total),key:'total'}].concat(items),
+      label:d[xKey]
+    });
+  }
+  return React.createElement('div',{ref:cRef,style:{width:'100%'}},
+    React.createElement('svg',{width:W,height:h,onMouseMove:onMove,onMouseLeave:function(){setHover(null);}},
+      Array.from({length:nTicks+1},function(_,i){
+        var v=(vMax/nTicks)*i, y=sy(v);
+        return React.createElement('g',{key:i},
+          React.createElement('line',{x1:PL,x2:PL+pw,y1:y,y2:y,stroke:'#1c2a3f',strokeDasharray:'3 3'}),
+          React.createElement('text',{x:PL-6,y:y+4,textAnchor:'end',fontSize:10,fill:'#5a7a96'},yFmtTick(v))
+        );
+      }),
+      data.map(function(d,i){
+        var lbl=xFmt?xFmt(d[xKey]):d[xKey];
+        if(!lbl) return null;
+        return React.createElement('text',{key:i,x:sx(i),y:h-6,textAnchor:'middle',fontSize:10,fill:'#5a7a96'},lbl);
+      }),
+      refLineX!=null&&(function(){
+        var idx=data.findIndex(function(d){return d[xKey]===refLineX;});
+        if(idx<0) return null;
+        return React.createElement('g',null,
+          React.createElement('line',{x1:sx(idx),x2:sx(idx),y1:PT,y2:h-PB,stroke:'#c9a84c',strokeDasharray:'4 3',strokeWidth:1.5}),
+          React.createElement('text',{x:sx(idx)+4,y:PT+10,fontSize:10,fill:'#c9a84c'},refLineLabel)
+        );
+      })(),
+      series.map(function(s,si){
+        return React.createElement('path',{key:s.key,d:stackedPath(si),fill:s.color,fillOpacity:0.8,stroke:'none'});
+      }),
+      hover&&React.createElement('g',null,
+        React.createElement('line',{x1:hover.x,x2:hover.x,y1:PT,y2:h-PB,
+          stroke:'rgba(255,255,255,0.2)',strokeWidth:1,strokeDasharray:'3 3'}),
+        hover.items.filter(function(it){return it.key!=='total';}).map(function(it){
+          return React.createElement('g',{key:it.key},
+            React.createElement('circle',{cx:hover.x,cy:it.y,r:4,fill:'#080d18',stroke:it.color,strokeWidth:2}),
+            React.createElement('circle',{cx:hover.x,cy:it.y,r:2,fill:it.color})
+          );
+        }),
+        React.createElement(SVGTooltip,{x:hover.x,y:h/3,items:hover.items,label:hover.label,W:W})
+      )
+    )
+  );
+}
+// ─── Dividend Calendar Tab ────────────────────────────────────────────────────
+function DividendTab() {
+  var e = React.createElement;
+  var _s1 = useState('calendar'), view = _s1[0], setView = _s1[1];
+  var _s2 = useState(null), selMonth = _s2[0], setSelMonth = _s2[1];
+  var fmtD = function(n) { return '$' + Math.round(n).toLocaleString(); };
+  var fmtDec = function(n) { return '$' + n.toFixed(2); };
+  var MNAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  var MSHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var freqLabel = {M:'Monthly',Q:'Quarterly',S:'Semi-Annual',A:'Annual'};
+  var freqColor = {M:C.inc1,Q:C.bull,S:C.s2,A:C.re2};
+  var monthPayments = Array.from({length:12}, function(_,mi) {
+    return DIVIDENDS.filter(function(d){ return d.months.indexOf(mi+1) > -1; })
+      .map(function(d){ return {sym:d.sym, amount:d.perPay, freq:d.freq, note:d.note}; })
+      .sort(function(a,b){ return b.amount-a.amount; });
+  });
+  var maxMonth = Math.max.apply(null, DIV_MONTH_TOTALS);
+  var sorted = DIVIDENDS.slice().sort(function(a,b){return b.annual-a.annual;});
+  var byFreq = {};
+  DIVIDENDS.forEach(function(d) {
+    if (!byFreq[d.freq]) byFreq[d.freq] = 0;
+    byFreq[d.freq] += d.annual;
+  });
+  var curMonthIdx = 3;
+  var ytdActual = DIV_MONTH_TOTALS.slice(0, curMonthIdx+1).reduce(function(s,v){return s+v;},0);
+  var remainingYr = DIV_MONTH_TOTALS.slice(curMonthIdx+1).reduce(function(s,v){return s+v;},0);
+
+  return e('div', null,
+    e('div', {style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:18}},
+      e(Card,{style:{borderTop:'2px solid '+C.gold}},
+        e(Stat,{label:'Total Annual Dividend Income',value:fmtD(DIV_ANNUAL_TOTAL)+'/yr',sub:DIVIDENDS.length+' positions paying dividends',accent:C.gold})),
+      e(Card,{style:{borderTop:'2px solid '+C.bull}},
+        e(Stat,{label:'Average Monthly Income',value:fmtD(DIV_ANNUAL_TOTAL/12)+'/mo',sub:'Ranges '+fmtD(Math.min.apply(null,DIV_MONTH_TOTALS))+' – '+fmtD(maxMonth),accent:C.bull})),
+      e(Card,{style:{borderTop:'2px solid '+C.inc3}},
+        e(Stat,{label:'Best Month (Mar/Jun/Sep/Dec)',value:fmtD(maxMonth),sub:'Q3 payers dominate March-cycle months',accent:C.inc3})),
+      e(Card,{style:{borderTop:'2px solid '+C.s2}},
+        e(Stat,{label:'YTD Received (Jan–Apr)',value:fmtD(ytdActual),sub:'Through April 2026',accent:C.s2})),
+      e(Card,{style:{borderTop:'2px solid '+C.re1}},
+        e(Stat,{label:'Remaining 2026 (May–Dec)',value:fmtD(remainingYr),sub:'8 months remaining',accent:C.re1}))
+    ),
+    e(Card,{style:{marginBottom:16,padding:'12px 18px'}},
+      e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}},'Income by Payment Frequency'),
+      e('div',{style:{display:'flex',gap:24,flexWrap:'wrap',fontSize:12}},
+        Object.keys(byFreq).sort().map(function(freq){
+          var cnt = DIVIDENDS.filter(function(d){return d.freq===freq;}).length;
+          return e('div',{key:freq,style:{display:'flex',alignItems:'center',gap:7}},
+            e('div',{style:{width:10,height:10,borderRadius:2,background:freqColor[freq]||C.gold}}),
+            e('span',{style:{color:C.muted}},freqLabel[freq]+' ('+cnt+'):'),
+            e('span',{style:{color:freqColor[freq]||C.gold,fontFamily:'monospace',fontWeight:700}},fmtD(byFreq[freq])+'/yr')
+          );
+        })
+      )
+    ),
+    e('div',{style:{display:'flex',gap:8,marginBottom:16}},
+      [{k:'calendar',l:'📅 Calendar View'},{k:'chart',l:'📊 Monthly Bar Chart'},{k:'table',l:'📋 All Payers'}].map(function(opt){
+        return e('button',{key:opt.k,onClick:function(){setView(opt.k);setSelMonth(null);},style:{
+          padding:'8px 16px',fontSize:11,cursor:'pointer',borderRadius:6,letterSpacing:'0.04em',textTransform:'uppercase',
+          border:'1px solid '+(view===opt.k?C.gold:C.border),background:view===opt.k?C.gold:'transparent',
+          color:view===opt.k?'#080d18':C.silver,fontWeight:view===opt.k?700:500}},opt.l);
+      })
+    ),
+    view==='calendar'&&e('div',null,
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:16}},
+        Array.from({length:12},function(_,mi){
+          var isSelected = selMonth===mi;
+          var isPast = mi < curMonthIdx;
+          var isCurrent = mi === curMonthIdx;
+          var total = DIV_MONTH_TOTALS[mi];
+          var payers = monthPayments[mi];
+          return e('div',{key:mi,
+            onClick:function(){setSelMonth(selMonth===mi?null:mi);},
+            style:{
+              background: isSelected?'rgba(201,168,76,0.12)':isCurrent?'rgba(62,201,126,0.06)':'rgba(255,255,255,0.025)',
+              border:'1px solid '+(isSelected?C.gold:isCurrent?C.bull:C.border),
+              borderRadius:10,padding:'14px 14px',cursor:'pointer',transition:'all 0.15s',opacity:isPast?0.7:1
+            }},
+            e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:8}},
+              e('span',{style:{fontSize:13,fontWeight:700,color:isSelected?C.gold:isCurrent?C.bull:C.text}},MSHORT[mi]),
+              isPast&&e('span',{style:{fontSize:9,color:C.muted,background:C.border,padding:'1px 5px',borderRadius:3}},'PAID'),
+              isCurrent&&e('span',{style:{fontSize:9,color:C.bull,background:C.bull+'18',padding:'1px 5px',borderRadius:3}},'CURRENT')
+            ),
+            e('div',{style:{fontSize:18,fontWeight:800,fontFamily:'monospace',color:isSelected?C.gold:C.text,marginBottom:6}},fmtD(total)),
+            e('div',{style:{height:4,background:C.border,borderRadius:2,marginBottom:8,overflow:'hidden'}},
+              e('div',{style:{height:'100%',width:(total/maxMonth*100)+'%',background:isSelected?C.gold:isCurrent?C.bull:C.s3,borderRadius:2}})
+            ),
+            e('div',{style:{fontSize:10,color:C.muted}},
+              payers.slice(0,3).map(function(p){
+                return e('div',{key:p.sym,style:{display:'flex',justifyContent:'space-between',padding:'1px 0'}},
+                  e('span',{style:{color:C.silver}},p.sym),
+                  e('span',{style:{fontFamily:'monospace',color:C.muted}},fmtDec(p.amount))
+                );
+              }),
+              payers.length>3&&e('span',{style:{color:C.border}},'+'+( payers.length-3)+' more')
+            )
+          );
+        })
+      ),
+      selMonth!==null&&e(Card,{style:{borderTop:'2px solid '+C.gold,marginBottom:16}},
+        e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14}},
+          e('div',null,
+            e('h3',{style:{margin:0,fontSize:16,fontWeight:700,color:C.gold}},MNAMES[selMonth]+' Dividend Payments'),
+            e('div',{style:{fontSize:12,color:C.muted,marginTop:2}},
+              monthPayments[selMonth].length+' payments · Total: ',
+              e('span',{style:{color:C.gold,fontWeight:700}},fmtD(DIV_MONTH_TOTALS[selMonth]))
+            )
+          ),
+          e('button',{onClick:function(){setSelMonth(null);},style:{
+            fontSize:11,cursor:'pointer',borderRadius:5,border:'1px solid '+C.border,
+            background:'transparent',color:C.muted,padding:'4px 10px'}},' Close')
+        ),
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,
+            [e(TH,{key:'s'},'Symbol'),e(TH,{key:'n'},'Name / Description'),e(TH,{key:'f'},'Freq'),e(TH,{key:'a'},'This Payment'),e(TH,{key:'y'},'Annual Total')]
+          )),
+          e('tbody',null,
+            monthPayments[selMonth].map(function(p,i){
+              var d = DIVIDENDS.find(function(x){return x.sym===p.sym;});
+              return e('tr',{key:p.sym,style:{borderBottom:'1px solid '+C.border+'15',background:i%2===0?'transparent':'rgba(255,255,255,0.01)'}},
+                e('td',{style:{padding:'6px 10px',color:C.gold,fontWeight:700}},p.sym),
+                e(TD,{color:C.silver},p.note),
+                e('td',{style:{padding:'6px 10px'}},
+                  e('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:3,background:(freqColor[p.freq]||C.gold)+'18',color:freqColor[p.freq]||C.gold,fontWeight:600}},freqLabel[p.freq])
+                ),
+                e('td',{style:{padding:'6px 10px',color:C.bull,fontFamily:'monospace',fontWeight:700}},fmtDec(p.amount)),
+                e(TD,{color:C.text,mono:true},d?fmtDec(d.annual):'-')
+              );
+            })
+          )
+        )
+      )
+    ),
+    view==='chart'&&e('div',null,
+      e(Card,{style:{marginBottom:16}},
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:10}},'Click any bar to see payment detail. March, June, September, December are heaviest months (Q3-cycle payers).'),
+        e('div',{style:{display:'flex',alignItems:'flex-end',gap:6,height:240,padding:'0 8px'}},
+          DIV_MONTH_TOTALS.map(function(v,mi){
+            var isPast = mi < curMonthIdx;
+            var isCurrent = mi === curMonthIdx;
+            var barH = Math.round((v/maxMonth)*200);
+            var isSelected = selMonth===mi;
+            return e('div',{key:mi,style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',cursor:'pointer'},
+              onClick:function(){setSelMonth(selMonth===mi?null:mi);}},
+              e('div',{style:{fontSize:10,color:isSelected?C.gold:C.bull,fontFamily:'monospace',marginBottom:3}},fmtD(v)),
+              e('div',{style:{width:'100%',height:barH,background:isSelected?C.gold:isCurrent?C.bull:isPast?C.s2:C.s3,borderRadius:'3px 3px 0 0',opacity:isPast?0.6:1,transition:'all 0.15s'}}),
+              e('div',{style:{fontSize:10,color:isSelected?C.gold:C.muted,marginTop:4,fontWeight:isSelected?700:400}},MSHORT[mi])
+            );
+          })
+        )
+      ),
+      selMonth!==null&&e(Card,{style:{borderTop:'2px solid '+C.gold}},
+        e('div',{style:{fontWeight:700,color:C.gold,marginBottom:10,fontSize:14}},
+          MNAMES[selMonth]+' — '+fmtD(DIV_MONTH_TOTALS[selMonth])+' from '+monthPayments[selMonth].length+' payments'
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}},
+          monthPayments[selMonth].map(function(p){
+            return e('div',{key:p.sym,style:{display:'flex',justifyContent:'space-between',padding:'6px 10px',background:'rgba(255,255,255,0.03)',borderRadius:6,fontSize:12}},
+              e('span',{style:{color:C.gold,fontWeight:700}},p.sym),
+              e('span',{style:{color:C.bull,fontFamily:'monospace'}},fmtDec(p.amount))
+            );
+          })
+        )
+      )
+    ),
+    view==='table'&&e('div',null,
+      e(Card,null,
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:10}},
+          'All '+DIVIDENDS.length+' paying positions sorted by annual dividend income. '+
+          (HOLDINGS.length - DIVIDENDS.length)+' positions pay no dividend (AMD, AMZN, PANW, ORLY, etc.)'
+        ),
+        e('div',{style:{maxHeight:580,overflowY:'auto'}},
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+            e('thead',null,e('tr',null,
+              [e(TH,{key:'r'},'#'),e(TH,{key:'s'},'Symbol'),e(TH,{key:'n'},'Description'),
+               e(TH,{key:'f'},'Frequency'),e(TH,{key:'m'},'Pay Months'),
+               e(TH,{key:'pp'},'Per Payment'),e(TH,{key:'ay'},'Annual Total')]
+            )),
+            e('tbody',null,
+              sorted.map(function(d,i){
+                return e('tr',{key:d.sym,style:{borderBottom:'1px solid '+C.border+'15',background:i%2===0?'transparent':'rgba(255,255,255,0.01)'}},
+                  e('td',{style:{padding:'5px 8px',color:C.muted,fontSize:10}},i+1),
+                  e('td',{style:{padding:'5px 10px',color:C.gold,fontWeight:700}},d.sym),
+                  e(TD,{color:C.silver},d.note),
+                  e('td',{style:{padding:'5px 10px'}},
+                    e('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:3,background:(freqColor[d.freq]||C.gold)+'18',color:freqColor[d.freq]||C.gold,fontWeight:600}},freqLabel[d.freq])
+                  ),
+                  e('td',{style:{padding:'5px 10px',color:C.muted,fontSize:11}},
+                    d.months.map(function(m){return MSHORT[m-1];}).join(', ')
+                  ),
+                  e(TD,{color:C.bull,mono:true},fmtDec(d.perPay)),
+                  e('td',{style:{padding:'5px 10px',color:C.text,fontFamily:'monospace',fontWeight:600}},fmtDec(d.annual))
+                );
+              })
+            )
+          )
+        ),
+        e('div',{style:{marginTop:12,padding:'10px 14px',background:C.gold+'0d',border:'1px solid '+C.gold+'30',borderRadius:8,display:'flex',justifyContent:'space-between',alignItems:'center'}},
+          e('span',{style:{fontSize:12,color:C.muted}},'TOTAL ANNUAL DIVIDEND INCOME ('+DIVIDENDS.length+' positions)'),
+          e('span',{style:{fontSize:20,fontWeight:800,fontFamily:'monospace',color:C.gold}},fmtD(DIV_ANNUAL_TOTAL)+'/yr')
+        )
+      )
+    )
+  );
+}
+// ─── Live Tab ─────────────────────────────────────────────────────────────────
+var SNAP_TOTAL_INVEST = 4902585;
+var MUNIS_MV = 391944, FUNDS_MV = 106408, CASH_MV = 23071;
+
+var STOOQ_OVERRIDES = {
+  'BAESY':'BAESY.US','NSRGY':'NSRGY.US','ABEV':'ABEV.US','BABA':'BABA.US',
+  'SDZNY':'SDZNY.US','SOUHY':'SOUHY.US','SNY':'SNY.US','NVS':'NVS.US',
+  'TEVA':'TEVA.US','TSM':'TSM.US','PDI':'PDI.US','SCHE':'SCHE.US','XHB':'XHB.US',
+  'SOLV':'SOLV.US','SOLS':'SOLS.US','FTRE':'FTRE.US','WDS':'WDS.US',
+};
+
+function stooqSym(sym) {
+  return STOOQ_OVERRIDES[sym] || (sym + '.US');
+}
+
+async function fetchStooq(sym) {
+  var ssym = stooqSym(sym);
+  var url = 'https://stooq.com/q/l/?s=' + ssym + '&f=sd2t2ohlcv&h&e=csv';
+  var r = await fetch(url);
+  if (!r.ok) return null;
+  var text = await r.text();
+  var lines = text.trim().split('\n');
+  if (lines.length < 2) return null;
+  var parts = lines[1].split(',');
+  if (parts.length < 6) return null;
+  var close = parseFloat(parts[5]);
+  var open  = parseFloat(parts[2]);
+  if (!close || isNaN(close)) return null;
+  return { price: close, change: close - open, changePct: open > 0 ? (close - open) / open * 100 : 0 };
+}
+
+async function fetchYahoo(sym) {
+  var endpoints = [
+    'https://query1.finance.yahoo.com/v8/finance/chart/' + sym + '?interval=1d&range=1d',
+    'https://query2.finance.yahoo.com/v8/finance/chart/' + sym + '?interval=1d&range=1d',
+  ];
+  for (var i = 0; i < endpoints.length; i++) {
+    try {
+      var r = await fetch(endpoints[i]);
+      if (!r.ok) continue;
+      var d = await r.json();
+      var meta = d && d.chart && d.chart.result && d.chart.result[0] && d.chart.result[0].meta;
+      if (!meta || !meta.regularMarketPrice) continue;
+      var prev = meta.chartPreviousClose || meta.previousClose || meta.regularMarketPrice;
+      var price = meta.regularMarketPrice;
+      return { price, change: price - prev, changePct: prev > 0 ? (price - prev) / prev * 100 : 0 };
+    } catch(e) {}
+  }
+  return null;
+}
+
+async function fetchOne(sym) {
+  try {
+    var yf = await fetchYahoo(sym);
+    if (yf) return { ...yf, source: 'Yahoo' };
+  } catch(e) {}
+  try {
+    var sq = await fetchStooq(sym);
+    if (sq) return { ...sq, source: 'Stooq' };
+  } catch(e) {}
+  return null;
+}
+
+async function fetchAllPrices(onProgress) {
+  var syms = HOLDINGS.map(function(h) { return h.sym; });
+  var results = {}, done = 0;
+  var CONC = 10;
+  for (var i = 0; i < syms.length; i += CONC) {
+    var batch = syms.slice(i, i + CONC);
+    var batchRes = await Promise.all(batch.map(function(sym) {
+      return fetchOne(sym).then(function(r) { return { sym, data: r }; });
+    }));
+    batchRes.forEach(function(br) { if (br.data) results[br.sym] = br.data; });
+    done += batch.length;
+    if (onProgress) onProgress(Math.round(done / syms.length * 100));
+    if (i + CONC < syms.length) await new Promise(function(r) { setTimeout(r, 150); });
+  }
+  return results;
+}
+
+function parsePastedCSV(text) {
+  var lines = text.trim().split('\n').filter(function(l) { return l.trim(); });
+  var prices = {};
+  var hasHeader = /symbol|ticker|price|value/i.test(lines[0]);
+  var start = hasHeader ? 1 : 0;
+  for (var i = start; i < lines.length; i++) {
+    var parts = lines[i].split(/[,\t]/);
+    if (parts.length < 2) continue;
+    var sym = parts[0].trim().replace(/"/g, '').toUpperCase();
+    var price = null;
+    for (var j = 1; j < parts.length; j++) {
+      var v = parseFloat(parts[j].replace(/[$,"]/g, ''));
+      if (!isNaN(v) && v > 0.01 && v < 100000) { price = v; break; }
+    }
+    if (sym && price) prices[sym] = { price, change: null, changePct: null, source: 'Pasted' };
+  }
+  return prices;
+}
+
+function calcPortfolio(prices) {
+  var rows = HOLDINGS.map(function(h) {
+    var q = prices[h.sym];
+    var livePrice = q ? q.price : null;
+    var liveMv = livePrice != null ? Math.round(livePrice * h.qty * 100) / 100 : h.snapMv;
+    var chgFromSnap = liveMv - h.snapMv;
+    var chgPct = h.snapMv > 0 ? chgFromSnap / h.snapMv * 100 : 0;
+    return { sym: h.sym, qty: h.qty, cb: h.cb,
+      snapPrice: h.snapPrice, snapMv: h.snapMv,
+      livePrice: livePrice != null ? livePrice : h.snapPrice,
+      liveMv, chgFromSnap, chgPct,
+      dayChange: q ? q.change : null,
+      dayChangePct: q ? q.changePct : null,
+      source: q ? (q.source || 'Live') : 'Snap',
+      fetched: livePrice != null };
+  });
+  var fetchedCount = rows.filter(function(r) { return r.fetched; }).length;
+  var liveEquityMv = rows.reduce(function(s, r) { return s + r.liveMv; }, 0);
+  var totalLive = liveEquityMv + MUNIS_MV + FUNDS_MV + CASH_MV;
+  var dayPnL = rows.reduce(function(s, r) {
+    return s + (r.dayChange != null ? r.dayChange * r.qty : 0);
+  }, 0);
+  var sorted = rows.slice().sort(function(a,b){return b.chgFromSnap-a.chgFromSnap;});
+  return { rows, liveEquityMv, totalLive,
+    chgFromSnap: totalLive - SNAP_TOTAL_INVEST,
+    dayPnL, fetchedCount,
+    topGainers: sorted.slice(0,8),
+    topLosers:  sorted.slice(-8).reverse() };
+}
+
+function LiveTab() {
+  var e = React.createElement;
+  var _s1 = useState('idle'),   status   = _s1[0], setStatus   = _s1[1];
+  var _s2 = useState(0),        prog     = _s2[0], setProg     = _s2[1];
+  var _s3 = useState(null),     result   = _s3[0], setResult   = _s3[1];
+  var _s4 = useState(null),     fetchAt  = _s4[0], setFetchAt  = _s4[1];
+  var _s5 = useState(null),     error    = _s5[0], setError    = _s5[1];
+  var _s6 = useState('mv'),     sortBy   = _s6[0], setSortBy   = _s6[1];
+  var _s7 = useState(false),    showPaste= _s7[0], setShowPaste= _s7[1];
+  var _s8 = useState(''),       pasteText= _s8[0], setPasteText= _s8[1];
+  var _s9 = useState(''),       pasteErr = _s9[0], setPasteErr = _s9[1];
+
+  var fmtP = function(n) { return (n >= 0 ? '+$' : '-$') + Math.abs(Math.round(n)).toLocaleString(); };
+  var fmtPrice = function(n) { return n != null ? '$' + n.toFixed(2) : '—'; };
+  var fmtPct   = function(n) { return (n >= 0 ? '+' : '') + n.toFixed(2) + '%'; };
+  var clr      = function(n) { return n > 0 ? C.bull : n < 0 ? C.bear : C.muted; };
+
+  async function doFetch() {
+    setStatus('loading'); setProg(0); setError(null);
+    try {
+      var prices = await fetchAllPrices(function(p) { setProg(p); });
+      var fetched = Object.keys(prices).length;
+      var r = calcPortfolio(prices);
+      if (fetched === 0) {
+        setError('No prices returned from Yahoo Finance or Stooq. This usually happens when the HTML file is opened directly from your computer (file:// URL). Try the "Paste Prices" option below instead, or upload the file to a web server.');
+        setStatus('error');
+      } else {
+        setResult(r); setFetchAt(new Date().toLocaleTimeString()); setStatus('done');
+      }
+    } catch(err) {
+      setError('Fetch failed: ' + err.message);
+      setStatus('error');
+    }
+  }
+
+  function doPaste() {
+    setPasteErr('');
+    if (!pasteText.trim()) { setPasteErr('Paste your price data above first.'); return; }
+    var prices = parsePastedCSV(pasteText);
+    var n = Object.keys(prices).length;
+    if (n === 0) { setPasteErr('Could not parse any Symbol,Price pairs. Use format: AAPL,192.50 (one per line, or paste a brokerage CSV).'); return; }
+    var r = calcPortfolio(prices);
+    setResult(r); setFetchAt(new Date().toLocaleTimeString()); setStatus('done');
+    setShowPaste(false); setPasteText('');
+  }
+
+  var RE_CT=1000000, RE_NH=2250000, SB_AV=673773, ATH_AV=584929;
+  var liveTotal = result ? result.totalLive + RE_CT + RE_NH + SB_AV + ATH_AV : null;
+  var snapEstate = SNAP_TOTAL_INVEST + RE_CT + RE_NH + SB_AV + ATH_AV;
+
+  var sortedRows = result ? result.rows.slice().sort(function(a,b){
+    if(sortBy==='mv')     return b.liveMv-a.liveMv;
+    if(sortBy==='chg')    return b.chgFromSnap-a.chgFromSnap;
+    if(sortBy==='chgpct') return b.chgPct-a.chgPct;
+    if(sortBy==='day')    return (b.dayChangePct||0)-(a.dayChangePct||0);
+    return b.liveMv-a.liveMv;
+  }) : [];
+
+  return e('div',null,
+    e('div',{style:{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12,marginBottom:18}},
+      e('div',null,
+        e('h2',{style:{margin:0,fontSize:17,fontWeight:800,color:C.text}},'📡 Live Portfolio Valuation'),
+        e('p',{style:{margin:'4px 0 0',color:C.muted,fontSize:12}},'109 equity + ETF positions · Tries Yahoo Finance then Stooq · Munis/funds/RE use Feb 2026 snapshot')
+      ),
+      e('div',{style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}},
+        fetchAt&&e('span',{style:{fontSize:11,color:C.muted}},'Updated: '+fetchAt),
+        e('button',{onClick:function(){setShowPaste(!showPaste);},style:{
+          padding:'9px 16px',fontSize:12,fontWeight:600,cursor:'pointer',borderRadius:7,
+          border:'1px solid '+(showPaste?C.gold:C.border),
+          background:showPaste?C.gold+'18':'transparent',color:showPaste?C.gold:C.silver}},
+          '📋 Paste Prices'
+        ),
+        e('button',{onClick:doFetch,disabled:status==='loading',style:{
+          padding:'9px 18px',fontSize:12,fontWeight:700,cursor:status==='loading'?'not-allowed':'pointer',
+          borderRadius:7,border:'2px solid '+C.bull,
+          background:status==='loading'?'transparent':C.bull+'18',
+          color:status==='loading'?C.muted:C.bull}},
+          status==='loading'?'⏳ Fetching… '+prog+'%':status==='done'?'🔄 Refresh':'🔴 Auto-Fetch Prices'
+        )
+      )
+    ),
+    showPaste&&e(Card,{style:{marginBottom:16,border:'1px solid '+C.gold+'40'}},
+      e('div',{style:{fontSize:13,fontWeight:700,color:C.gold,marginBottom:6}},'📋 Paste Prices Manually'),
+      e('div',{style:{fontSize:12,color:C.muted,marginBottom:10,lineHeight:1.7}},
+        'Paste price data in any of these formats:',e('br',null),
+        e('span',{style:{fontFamily:'monospace',color:C.silver}},'AAPL, 192.50'),
+        ' — or paste a CSV export from Schwab, Fidelity, or any brokerage.',e('br',null),
+        e('strong',{style:{color:C.text}},'Schwab: '),'"Positions" → Export → copy the CSV. ',
+        e('strong',{style:{color:C.text}},'Fidelity: '),'Accounts & Trade → Positions → Download.'
+      ),
+      e('textarea',{value:pasteText,onChange:function(ev){setPasteText(ev.target.value);},
+        placeholder:'AAPL, 192.50\nNVDA, 118.25\nMSFT, 412.00\n...\n\nOr paste a full brokerage CSV export here',
+        style:{width:'100%',height:160,background:'rgba(255,255,255,0.04)',border:'1px solid '+C.border,
+          borderRadius:6,padding:'10px 12px',fontSize:12,color:C.text,fontFamily:'monospace',
+          resize:'vertical',outline:'none',boxSizing:'border-box'}}),
+      pasteErr&&e('div',{style:{fontSize:11,color:C.bear,margin:'6px 0'}},pasteErr),
+      e('div',{style:{display:'flex',gap:10,marginTop:10}},
+        e('button',{onClick:doPaste,style:{padding:'8px 18px',fontSize:12,fontWeight:700,cursor:'pointer',
+          borderRadius:6,border:'2px solid '+C.bull,background:C.bull+'18',color:C.bull}},'✓ Apply Prices'),
+        e('button',{onClick:function(){setShowPaste(false);setPasteText('');setPasteErr('');},style:{
+          padding:'8px 14px',fontSize:12,cursor:'pointer',borderRadius:6,
+          border:'1px solid '+C.border,background:'transparent',color:C.muted}},'Cancel')
+      )
+    ),
+    error&&e('div',{style:{padding:'12px 16px',background:'rgba(224,92,92,0.08)',border:'1px solid rgba(224,92,92,0.3)',borderRadius:8,marginBottom:16,fontSize:12,color:C.bear,lineHeight:1.7}},
+      e('strong',null,'⚠ Fetch error: '),error,
+      e('div',{style:{marginTop:10,padding:'8px 12px',background:'rgba(201,168,76,0.08)',border:'1px solid rgba(201,168,76,0.25)',borderRadius:6}},
+        e('strong',{style:{color:C.gold}},'Workaround: '),
+        e('span',{style:{color:C.muted}},'Click "📋 Paste Prices" above and paste a CSV from Schwab/Fidelity, or type prices manually as SYMBOL, PRICE (one per line).')
+      )
+    ),
+    status==='idle'&&!showPaste&&e(Card,{style:{textAlign:'center',padding:'36px 20px',marginBottom:16}},
+      e('div',{style:{fontSize:36,marginBottom:10}},'📡'),
+      e('div',{style:{fontSize:15,fontWeight:700,color:C.text,marginBottom:8}},'Two ways to get live prices'),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,maxWidth:600,margin:'0 auto',textAlign:'left'}},
+        e('div',{style:{padding:'14px',background:'rgba(62,201,126,0.06)',borderRadius:8,border:'1px solid '+C.bull+'30'}},
+          e('div',{style:{fontWeight:700,color:C.bull,marginBottom:6,fontSize:13}},'🔴 Auto-Fetch'),
+          e('div',{style:{fontSize:12,color:C.muted,lineHeight:1.6}},'Tries Yahoo Finance then Stooq.com for each symbol. Works best when the file is served over http:// — may not work from file:// on all browsers.')
+        ),
+        e('div',{style:{padding:'14px',background:'rgba(201,168,76,0.06)',borderRadius:8,border:'1px solid '+C.gold+'30'}},
+          e('div',{style:{fontWeight:700,color:C.gold,marginBottom:6,fontSize:13}},'📋 Paste Prices'),
+          e('div',{style:{fontSize:12,color:C.muted,lineHeight:1.6}},'Export positions from Schwab or Fidelity, paste the CSV here. Always works. No internet needed after export.')
+        )
+      )
+    ),
+    status==='loading'&&e(Card,{style:{marginBottom:16}},
+      e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Trying Yahoo Finance → Stooq fallback · 10 concurrent · '+prog+'%'),
+      e('div',{style:{height:8,background:'#1c2a3f',borderRadius:4,overflow:'hidden'}},
+        e('div',{style:{height:'100%',width:prog+'%',background:C.bull,borderRadius:4,transition:'width 0.3s'}})
+      )
+    ),
+    result&&e('div',null,
+      e('div',{style:{marginBottom:12,fontSize:12,color:C.muted,display:'flex',gap:14,flexWrap:'wrap'}},
+        ['Yahoo','Stooq','Pasted','Snap'].map(function(src){
+          var cnt=result.rows.filter(function(r){return r.source===src;}).length;
+          if(!cnt) return null;
+          var col=src==='Yahoo'?C.bull:src==='Stooq'?C.s2:src==='Pasted'?C.gold:C.muted;
+          return e('span',{key:src},
+            e('span',{style:{color:col,fontWeight:700}},cnt),
+            e('span',{style:{color:C.muted}},' '+src+(cnt===1?' price':' prices'))
+          );
+        })
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
+        e(Card,{style:{borderTop:'2px solid '+C.s3}},
+          e(Stat,{label:'Live Investment Value',value:'$'+Math.round(result.totalLive).toLocaleString(),sub:fmtP(result.chgFromSnap)+' vs Feb 2026',accent:clr(result.chgFromSnap)})),
+        e(Card,{style:{borderTop:'2px solid '+C.gold}},
+          e(Stat,{label:'Total Estate (Live + RE + Ann)',value:'$'+Math.round(liveTotal).toLocaleString(),sub:fmtP(liveTotal-snapEstate)+' vs snapshot',accent:clr(liveTotal-snapEstate)})),
+        e(Card,{style:{borderTop:'2px solid '+C.bull}},
+          e(Stat,{label:'Day P&L (fetched positions)',value:fmtP(result.dayPnL),sub:'vs prior close',accent:clr(result.dayPnL)})),
+        e(Card,{style:{borderTop:'2px solid '+C.base}},
+          e(Stat,{label:'Coverage',value:result.fetchedCount+' / 109',sub:result.fetchedCount+' live · '+(109-result.fetchedCount)+' snapshot',accent:result.fetchedCount>90?C.bull:C.s1}))
+      ),
+      e(Card,{style:{marginBottom:14,padding:'10px 16px'}},
+        e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}},'Non-Exchange-Traded (Feb 2026 Snapshot)'),
+        e('div',{style:{display:'flex',gap:18,flexWrap:'wrap',fontSize:12}},
+          [{l:'Munis',v:MUNIS_MV,c:C.inc3},{l:'Funds',v:FUNDS_MV,c:C.s1},{l:'Cash',v:CASH_MV,c:C.silver},
+           {l:'SB SGP',v:SB_AV,c:C.an1},{l:'Athene',v:ATH_AV,c:C.an2},
+           {l:'Glastonbury CT',v:RE_CT,c:C.re1},{l:'Silver Lake NH',v:RE_NH,c:C.re2}
+          ].map(function(it){
+            return e('span',{key:it.l,style:{display:'flex',alignItems:'center',gap:5}},
+              e('div',{style:{width:7,height:7,borderRadius:2,background:it.c}}),
+              e('span',{style:{color:C.muted}},it.l+': '),
+              e('span',{style:{color:it.c,fontFamily:'monospace',fontWeight:600}},'$'+it.v.toLocaleString())
+            );
+          })
+        )
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}},
+        e(Card,null,
+          e('div',{style:{fontSize:12,fontWeight:700,color:C.bull,marginBottom:10}},'🚀 Top Gainers vs Feb 2026'),
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+            e('thead',null,e('tr',null,[e(TH,{key:'s'},'Symbol'),e(TH,{key:'p'},'Price'),e(TH,{key:'m'},'Live Mv'),e(TH,{key:'c'},'vs Snapshot')])),
+            e('tbody',null,result.topGainers.map(function(r){
+              return e('tr',{key:r.sym,style:{borderBottom:'1px solid '+C.border+'15'}},
+                e('td',{style:{padding:'5px 8px',color:C.gold,fontWeight:700}},r.sym),
+                e(TD,{mono:true},fmtPrice(r.livePrice)),
+                e(TD,{mono:true},'$'+Math.round(r.liveMv).toLocaleString()),
+                e(TD,{color:C.bull,mono:true},fmtP(r.chgFromSnap))
+              );
+            }))
+          )
+        ),
+        e(Card,null,
+          e('div',{style:{fontSize:12,fontWeight:700,color:C.bear,marginBottom:10}},'📉 Top Laggers vs Feb 2026'),
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+            e('thead',null,e('tr',null,[e(TH,{key:'s'},'Symbol'),e(TH,{key:'p'},'Price'),e(TH,{key:'m'},'Live Mv'),e(TH,{key:'c'},'vs Snapshot')])),
+            e('tbody',null,result.topLosers.map(function(r){
+              return e('tr',{key:r.sym,style:{borderBottom:'1px solid '+C.border+'15'}},
+                e('td',{style:{padding:'5px 8px',color:C.gold,fontWeight:700}},r.sym),
+                e(TD,{mono:true},fmtPrice(r.livePrice)),
+                e(TD,{mono:true},'$'+Math.round(r.liveMv).toLocaleString()),
+                e(TD,{color:C.bear,mono:true},fmtP(r.chgFromSnap))
+              );
+            }))
+          )
+        )
+      ),
+      e('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:10,flexWrap:'wrap'}},
+        e('span',{style:{fontSize:12,color:C.muted}},'Sort by:'),
+        [{k:'mv',l:'Mkt Value'},{k:'chg',l:'Change $'},{k:'chgpct',l:'Change %'},{k:'day',l:'Day Chg'}].map(function(opt){
+          return e('button',{key:opt.k,onClick:function(){setSortBy(opt.k);},style:{
+            padding:'4px 10px',fontSize:11,cursor:'pointer',borderRadius:5,
+            border:'1px solid '+(sortBy===opt.k?C.gold:C.border),
+            background:sortBy===opt.k?C.gold+'18':'transparent',
+            color:sortBy===opt.k?C.gold:C.muted,fontWeight:sortBy===opt.k?700:400}},opt.l);
+        })
+      ),
+      e(Card,null,
+        e('div',{style:{maxHeight:520,overflowY:'auto'}},
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+            e('thead',null,e('tr',null,
+              [e(TH,{key:'s'},'Symbol'),e(TH,{key:'q'},'Qty'),e(TH,{key:'sp'},'Feb 2026'),
+               e(TH,{key:'lp'},'Live Price'),e(TH,{key:'sm'},'Snap Mv'),e(TH,{key:'lm'},'Live Mv'),
+               e(TH,{key:'cs'},'vs Feb 2026'),e(TH,{key:'dp'},'Day Chg'),e(TH,{key:'src'},'Source')]
+            )),
+            e('tbody',null,sortedRows.map(function(r){
+              var srcColor = r.source==='Yahoo'?C.bull:r.source==='Stooq'?C.s2:r.source==='Pasted'?C.gold:C.muted;
+              return e('tr',{key:r.sym,style:{borderBottom:'1px solid '+C.border+'15'}},
+                e('td',{style:{padding:'5px 8px',color:C.gold,fontWeight:700}},r.sym),
+                e(TD,{mono:true},r.qty.toLocaleString()),
+                e(TD,{color:C.muted,mono:true},fmtPrice(r.snapPrice)),
+                e('td',{style:{padding:'5px 8px',color:r.fetched?C.text:C.muted,fontFamily:'monospace',fontWeight:r.fetched?600:400}},fmtPrice(r.livePrice)),
+                e(TD,{mono:true},'$'+Math.round(r.snapMv).toLocaleString()),
+                e('td',{style:{padding:'5px 8px',color:C.text,fontFamily:'monospace',fontWeight:r.fetched?600:400}},'$'+Math.round(r.liveMv).toLocaleString()),
+                e(TD,{color:clr(r.chgFromSnap),mono:true},
+                  (r.chgFromSnap>=0?'+':'')+fmtP(r.chgFromSnap).replace(/^\+/,'')+' '+fmtPct(r.chgPct)),
+                e(TD,{color:r.dayChange!=null?clr(r.dayChange):C.muted,mono:true},
+                  r.dayChange!=null?fmtP(r.dayChange*r.qty)+' '+fmtPct(r.dayChangePct||0):'—'),
+                e('td',{style:{padding:'5px 8px'}},
+                  e('span',{style:{fontSize:10,padding:'2px 5px',borderRadius:3,background:srcColor+'18',color:srcColor,fontWeight:600}},r.source))
+              );
+            }))
+          )
+        )
+      )
+    )
+  );
+}
+// ─── All data & helpers ────────────────────────────────────────────────────────
+var C={bg:"#080d18",panel:"rgba(255,255,255,0.035)",border:"#1c2a3f",gold:"#c9a84c",silver:"#9ab0c8",text:"#dce8f2",muted:"#5a7a96",bull:"#3ec97e",bear:"#e05c5c",base:"#4a9ede",s1:"#f0c040",s2:"#a78bfa",s3:"#38bdf8",re1:"#fb923c",re2:"#f472b6",an1:"#34d399",an2:"#818cf8",inc1:"#fbbf24",inc2:"#4ade80",inc3:"#38bdf8"};
+var INVEST=4902585,RE_CT=1000000,RE_NH=2250000,SB_CURRENT_AV=673773,ATH_CURRENT_AV=584929,ATH_CURRENT_BB=786478;
+var TOTAL=INVEST+RE_CT+RE_NH+SB_CURRENT_AV+ATH_CURRENT_AV;
+var EQUITY_VALUE=4287614,EQUITY_DIV_YLD=0.022,MUNI_FACE=460000,MUNI_COUPON=0.0325,FUND_INCOME=10543,CASH_INCOME=1038,NH_RENTAL_NET=30240;
+var BB_2032=ATH_CURRENT_BB*Math.pow(1.07,6);
+var LT=0.238,S1_SAV=Math.round(79460*LT),S2_TAX=Math.round(180089*LT),S3_TAX=Math.round(238536*LT);
+var S1_START=INVEST+S1_SAV,S2_START=INVEST-S2_TAX+S1_SAV,S3_START=INVEST-S3_TAX+S1_SAV;
+var fmt=function(n){return n>=1e6?'$'+(n/1e6).toFixed(2)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+Math.round(n).toLocaleString();};
+var fmtF=function(n){return '$'+Math.round(n).toLocaleString();};
+var xFmtYr=function(v){return v%5===1||v===2026?String(v):'';};
+
+var LOSSES=[{sym:"TLRY",name:"Tilray Brands",mv:2986,cb:26842,loss:-23856},{sym:"FIS",name:"Fidelity Natl Info",mv:7217,cb:21902,loss:-14685},{sym:"APA",name:"APA Corp",mv:4293,cb:15092,loss:-10799},{sym:"CMP",name:"Compass Minerals",mv:3518,cb:13241,loss:-9723},{sym:"BHC",name:"Bausch Health",mv:4756,cb:13028,loss:-8272},{sym:"KW",name:"Kennedy-Wilson",mv:12207,cb:15895,loss:-3688},{sym:"VFC",name:"VF Corp",mv:6702,cb:9632,loss:-2930},{sym:"ABEV",name:"Ambev ADR",mv:3682,cb:6032,loss:-2350},{sym:"PFE",name:"Pfizer",mv:2198,cb:4153,loss:-1955},{sym:"TEVA",name:"Teva Pharma",mv:13873,cb:15076,loss:-1202}];
+var TRIM=[{sym:"VST",name:"Vistra Corp",mv:205944,gain:190011,pct:4.2},{sym:"NVDA",name:"Nvidia",mv:190922,gain:187592,pct:3.9},{sym:"AVGO",name:"Broadcom",mv:146470,gain:127683,pct:3.0},{sym:"NEE",name:"NextEra Energy",mv:141606,gain:112715,pct:2.9}];
+var FRATED=[{sym:"HBAN",name:"Huntington Bancshares",mv:28304,gain:14681},{sym:"BA",name:"Boeing",mv:24273,gain:17524},{sym:"AMD",name:"Adv Micro Devices",mv:26730,gain:6820},{sym:"IP",name:"International Paper",mv:22230,gain:11032},{sym:"KMB",name:"Kimberly-Clark",mv:21666,gain:8390}];
+var TOP_DIVS=[{sym:"NEE",name:"NextEra Energy",mv:141606,divPct:2.7,ann:3823},{sym:"ABBV",name:"AbbVie",mv:91376,divPct:3.08,ann:2814},{sym:"EMR",name:"Emerson Electric",mv:168986,divPct:1.49,ann:2518},{sym:"XOM",name:"Exxon Mobil",mv:89556,divPct:2.8,ann:2508},{sym:"OKE",name:"ONEOK",mv:32078,divPct:4.9,ann:1572},{sym:"AFL",name:"Aflac",mv:67476,divPct:2.14,ann:1444},{sym:"KMB",name:"Kimberly-Clark",mv:21666,divPct:4.7,ann:1018},{sym:"GIS",name:"General Mills",mv:19213,divPct:5.47,ann:1052},{sym:"UPS",name:"United Parcel",mv:17882,divPct:5.62,ann:1005},{sym:"IP",name:"Intl Paper",mv:22230,divPct:3.95,ann:878}];
+// ─── Tiny UI helpers ──────────────────────────────────────────────────────────
+function Card(p){return React.createElement('div',{style:Object.assign({background:C.panel,border:'1px solid '+C.border,borderRadius:10,padding:'16px 18px'},p.style||{})},p.children);}
+function Stat(p){return React.createElement('div',null,React.createElement('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:5}},p.label),React.createElement('div',{style:{fontSize:p.sm?15:20,fontWeight:800,color:C.text,fontFamily:'monospace',letterSpacing:'-0.02em'}},p.value),p.sub&&React.createElement('div',{style:{fontSize:11,color:p.accent||C.gold,marginTop:3}},p.sub));}
+function SH(p){return React.createElement('div',{style:{display:'flex',alignItems:'baseline',gap:10,marginBottom:14,marginTop:4}},React.createElement('span',{style:{fontSize:11,color:C.gold,background:'rgba(201,168,76,0.13)',border:'1px solid rgba(201,168,76,0.3)',borderRadius:4,padding:'2px 7px',fontWeight:700}},p.n),React.createElement('h2',{style:{margin:0,fontSize:15,fontWeight:700,color:C.text}},p.title),p.sub&&React.createElement('span',{style:{fontSize:11,color:C.muted}},p.sub));}
+function TH(p){return React.createElement('th',{style:{textAlign:'left',padding:'7px 10px',borderBottom:'1px solid '+C.border,color:C.muted,fontSize:10,letterSpacing:'0.06em',textTransform:'uppercase'}},p.children);}
+function TD(p){return React.createElement('td',{style:{padding:'6px 10px',color:p.color||C.text,fontFamily:p.mono?'monospace':'inherit'}},p.children);}
+function Badge(p){return React.createElement('span',{style:{fontSize:10,color:p.color||C.gold,background:(p.color||C.gold)+'1a',border:'1px solid '+(p.color||C.gold)+'40',borderRadius:4,padding:'1px 6px',fontWeight:600,marginLeft:6,verticalAlign:'middle'}},p.children);}
+function KV(p){return React.createElement('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid '+C.border+'20',fontSize:12,gap:8}},React.createElement('span',{style:{color:C.muted,flexShrink:0}},p.k),React.createElement('span',{style:{color:p.accent||C.text,fontWeight:500,textAlign:'right'}},p.v));}
+function Pill(p){return React.createElement('button',{onClick:p.onClick,style:{padding:'5px 11px',fontSize:11,cursor:'pointer',borderRadius:5,border:'1px solid '+(p.active?p.color:C.border),background:p.active?p.color+'20':'transparent',color:p.active?p.color:C.muted,fontWeight:p.active?700:400}},p.children);}
+
+// ─── Data generation ──────────────────────────────────────────────────────────
+function genAssetData(){
+  return Array.from({length:26},function(_,y){
+    return {yr:2026+y,y:y,
+      bull:Math.round(INVEST*Math.pow(1.08,y)),base:Math.round(INVEST*Math.pow(1.05,y)),bear:Math.round(INVEST*Math.pow(1.02,y)),
+      s1:Math.round(S1_START*Math.pow(1.051,y)),s2:Math.round(S2_START*Math.pow(1.055,y)),s3:Math.round(S3_START*Math.pow(1.06,y)),
+      reCT:Math.round(RE_CT*Math.pow(1.03,y)),reNH:Math.round(RE_NH*Math.pow(1.04,y)),
+      an1:Math.round(SB_CURRENT_AV*Math.pow(1.045,y)),an2:Math.round(ATH_CURRENT_AV*Math.pow(1.04,y)),an2bb:Math.round(ATH_CURRENT_BB*Math.pow(1.07,y))};
+  });
+}
+var ADATA=genAssetData(),D25=ADATA[25];
+
+function genIncomeData(asY,nh){
+  var pr={0:0.055,5:0.06,10:0.065,15:0.07};
+  var payout=pr[Math.min(asY,15)]||0.07;
+  var bbAtStart=ATH_CURRENT_BB*Math.pow(1.07,asY);
+  return Array.from({length:26},function(_,y){
+    var equityDiv=Math.round(EQUITY_VALUE*Math.pow(1.05,y)*EQUITY_DIV_YLD);
+    var fundInc=Math.round(FUND_INCOME*Math.pow(1.02,y));
+    var muniDecay=y>8?Math.max(0,1-(y-8)*0.06):1;
+    var muniInc=Math.round(MUNI_FACE*MUNI_COUPON*muniDecay);
+    var cashInc=Math.round(CASH_INCOME*Math.pow(0.97,y));
+    var atheneInc=y<asY?0:Math.round(bbAtStart*payout*Math.pow(1.02,y-asY));
+    var nhInc=nh?Math.round(NH_RENTAL_NET*Math.pow(1.03,y)):0;
+    return {yr:2026+y,y:y,equityDiv:equityDiv,fundInc:fundInc,muniInc:muniInc,cashInc:cashInc,atheneInc:atheneInc,nhInc:nhInc,total:equityDiv+fundInc+muniInc+cashInc+atheneInc+nhInc};
+  });
+}
+var INC_PORT_ONLY=genIncomeData(99,false),INC_NOW=genIncomeData(0,false),INC_2032=genIncomeData(6,false),INC_2036=genIncomeData(10,false),INC_2041=genIncomeData(15,false),INC_2032_NH=genIncomeData(6,true);
+var CUR=INC_PORT_ONLY[0],CUR_TOTAL=CUR.equityDiv+CUR.fundInc+CUR.muniInc+CUR.cashInc;
+// ─── Main App ─────────────────────────────────────────────────────────────────
+function App(){
+  var _s=useState('income'),tab=_s[0],setTab=_s[1];
+  var _s2=useState(6),atheneStart=_s2[0],setAS=_s2[1];
+  var _s3=useState(false),showNH=_s3[0],setShowNH=_s3[1];
+  var AINC=genIncomeData(atheneStart,showNH);
+  var atheneLabel=atheneStart===0?'Now (2026)':atheneStart===6?'2032 (surrender end)':atheneStart===10?'2036':'2041';
+  var tabs=[{k:'dividends',l:'💰 Dividends'},{k:'live',l:'🔴 Live'},{k:'income',l:'📈 Income'},{k:'overview',l:'Overview'},{k:'annuities',l:'Annuities'},{k:'projection',l:'Projection'},{k:'s1',l:'Strategy 1'},{k:'s2',l:'Strategy 2'},{k:'s3',l:'Strategy 3'},{k:'compare',l:'Compare All'}];
+  var e=React.createElement;
+  function tabBtn(k,l){return e('button',{key:k,onClick:function(){setTab(k);},style:{padding:'8px 14px',fontSize:11,fontWeight:tab===k?700:500,letterSpacing:'0.04em',textTransform:'uppercase',cursor:'pointer',borderRadius:6,border:'1px solid '+(tab===k?C.gold:C.border),background:tab===k?C.gold:'transparent',color:tab===k?'#080d18':C.silver}},l);}
+
+  return e('div',{style:{background:C.bg,minHeight:'100vh',fontFamily:"'Helvetica Neue',Arial,sans-serif",color:C.text,padding:'22px 18px',boxSizing:'border-box'}},
+    e('div',{style:{marginBottom:20,borderBottom:'1px solid '+C.border,paddingBottom:18}},
+      e('h1',{style:{margin:0,fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'#f0f6ff'}},
+        'Living Trust — Total Estate Projection',
+        e(Badge,{key:'b1'},'FEB 2026'),e(Badge,{key:'b2',color:C.s3},'RE'),e(Badge,{key:'b3',color:C.an1},'ANNUITIES'),e(Badge,{key:'b4',color:C.inc1},'INCOME')
+      ),
+      e('p',{style:{margin:'5px 0 0',color:C.muted,fontSize:12}},'Investment · 3685 Hebron Ave CT · 82 Alexander Ave NH · SB Strategic Growth Plus · Athene Agility 10')
+    ),
+    e('div',{style:{display:'flex',gap:6,marginBottom:22,flexWrap:'wrap'}},tabs.map(function(t){return tabBtn(t.k,t.l);})),
+
+    tab==='dividends'&&e(DividendTab,null),
+    tab==='live'&&e(LiveTab,null),
+
+    tab==='income'&&e('div',null,
+      e(Card,{style:{marginBottom:18,background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.2)',padding:'14px 18px'}},
+        e('div',{style:{display:'flex',alignItems:'center',gap:20,flexWrap:'wrap'}},
+          e('span',{style:{fontSize:12,color:C.gold,fontWeight:700}},'Scenario Controls'),
+          e('div',{style:{display:'flex',alignItems:'center',gap:8}},
+            e('span',{style:{fontSize:12,color:C.muted}},'Athene Start:'),
+            [{y:0,l:'Now'},{y:6,l:'2032 ★'},{y:10,l:'2036'},{y:15,l:'2041'}].map(function(it){return e(Pill,{key:it.y,active:atheneStart===it.y,color:C.an2,onClick:function(){setAS(it.y);}},it.l);})
+          ),
+          e('div',{style:{display:'flex',alignItems:'center',gap:8}},
+            e('span',{style:{fontSize:12,color:C.muted}},'NH Rental:'),
+            e(Pill,{active:showNH,color:C.re2,onClick:function(){setShowNH(!showNH);}},showNH?'✓ ON (~$30K/yr)':'OFF')
+          )
+        )
+      ),
+      e(SH,{n:'01',title:'Current Annual Income (2026)',sub:'Portfolio only — Athene GLWB not yet activated'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:16}},
+        [{l:'Equity Dividends',v:CUR.equityDiv,c:C.inc1,s:'~2.2% blended yield'},{l:'Muni Interest',v:CUR.muniInc,c:C.inc3,s:'Tax-free · $460K face'},{l:'Fund Distributions',v:CUR.fundInc,c:C.an1,s:'PDI+PHYTX+VFICX+VWEHX'},{l:'Cash / MM',v:CUR.cashInc,c:C.silver,s:'~4.5% MMF'},{l:'Portfolio Total',v:CUR_TOTAL,c:C.gold,s:'Before Athene income'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmt(it.v)+'/yr',sub:it.s,accent:it.c,sm:true}));})
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:18}},
+        e(Card,{style:{borderTop:'2px solid '+C.an2}},
+          e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}},'Athene GLWB — Activation Scenarios'),
+          e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+            [{l:'Start Now',v:Math.round(ATH_CURRENT_BB*0.055),c:C.muted},{l:'Start 2032',v:Math.round(BB_2032*0.06),c:C.an2},{l:'Start 2036',v:Math.round(ATH_CURRENT_BB*Math.pow(1.07,10)*0.065),c:C.s2},{l:'Start 2041',v:Math.round(ATH_CURRENT_BB*Math.pow(1.07,15)*0.07),c:C.bull}].map(function(it){return e('div',{key:it.l},e('div',{style:{fontSize:10,color:it.c,marginBottom:2}},it.l),e('div',{style:{fontSize:15,fontWeight:800,fontFamily:'monospace',color:it.c}},fmt(it.v)+'/yr'));})
+          ),
+          e('div',{style:{marginTop:8,fontSize:11,color:C.muted}},'Guaranteed for life · grows with index credits annually')
+        ),
+        e(Card,{style:{borderTop:'2px solid '+C.an1}},
+          e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}},'SB SGP Free Withdrawal (10%/yr)'),
+          e('div',{style:{fontSize:22,fontWeight:800,fontFamily:'monospace',color:C.an1}},fmt(SB_CURRENT_AV*0.1)+'/yr'),
+          e('div',{style:{fontSize:11,color:C.muted,marginTop:6,lineHeight:1.6}},'Penalty-free but ',e('span',{style:{color:C.bear}},'reduces account value'),'.',e('br',null),'Best left to compound until 2032 surrender end.')
+        ),
+        e(Card,{style:{borderTop:'2px solid '+C.re2}},
+          e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}},'Silver Lake NH — Rental Potential'),
+          e('div',{style:{display:'flex',gap:20,marginBottom:6}},
+            e('div',null,e('div',{style:{fontSize:10,color:C.muted,marginBottom:2}},'Conservative'),e('div',{style:{fontSize:15,fontWeight:800,fontFamily:'monospace',color:C.re2}},'~$30K/yr')),
+            e('div',null,e('div',{style:{fontSize:10,color:C.muted,marginBottom:2}},'Optimistic'),e('div',{style:{fontSize:15,fontWeight:800,fontFamily:'monospace',color:C.bull}},'~$50K/yr'))
+          ),
+          e('div',{style:{fontSize:11,color:C.muted}},'Net after ~28% mgmt · $3.5K–$7K/wk peak season')
+        )
+      ),
+      e(SH,{n:'02',title:'25-Year Income Projection',sub:'Athene: '+atheneLabel+' · NH Rental: '+(showNH?'ON':'OFF')}),
+      e(Card,{style:{marginBottom:18}},
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Stacked annual income. Gold vertical = surrender end 2032. Hover to inspect values.'),
+        e(Legend,{series:[{key:'equityDiv',name:'Equity Dividends',color:C.inc1},{key:'muniInc',name:'Muni Interest (tax-free)',color:C.inc3},{key:'fundInc',name:'Fund Distributions',color:C.an1},{key:'atheneInc',name:'Athene GLWB Income',color:C.an2},{key:'nhInc',name:'NH Rental Income',color:C.re2}]}),
+        e(StackedAreaChart,{data:AINC,xKey:'yr',xFmt:xFmtYr,H:320,refLineX:2032,refLineLabel:'Surrender ends',series:[{key:'equityDiv',name:'Equity Dividends',color:C.inc1},{key:'muniInc',name:'Muni Interest',color:C.inc3},{key:'fundInc',name:'Fund Distributions',color:C.an1},{key:'atheneInc',name:'Athene GLWB',color:C.an2},{key:'nhInc',name:'NH Rental',color:C.re2}]})
+      ),
+      e(SH,{n:'03',title:'Income Scenario Comparison at Key Years'}),
+      e(Card,{style:{marginBottom:18}},
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'po'},'Portfolio Only'),e(TH,{key:'an'},'+ Athene Now'),e(TH,{key:'a32'},'+ Athene 2032 ★'),e(TH,{key:'a36'},'+ Athene 2036'),e(TH,{key:'a41'},'+ Athene 2041')])),
+          e('tbody',null,[0,6,10,15,20,25].map(function(y){
+            var isSurr=y===6;
+            return e('tr',{key:y,style:{borderBottom:'1px solid '+C.border+'15',background:isSurr?'rgba(201,168,76,0.05)':'transparent'}},
+              e('td',{style:{padding:'7px 10px',color:isSurr?C.gold:C.text,fontWeight:isSurr?700:400}},(2026+y)+(isSurr?' ★':'')),
+              e(TD,{color:C.muted,mono:true},fmt(INC_PORT_ONLY[y].total)),
+              e(TD,{color:C.s2,mono:true},fmt(INC_NOW[y].total)),
+              e(TD,{color:C.an2,mono:true},e('strong',null,fmt(INC_2032[y].total))),
+              e(TD,{color:C.an1,mono:true},fmt(INC_2036[y].total)),
+              e(TD,{color:C.bull,mono:true},fmt(INC_2041[y].total))
+            );
+          }))
+        ),
+        e('div',{style:{marginTop:8,fontSize:11,color:C.muted}},'★ 2032 recommended — surrender ends, benefit base grown to ~'+fmt(BB_2032)+', generating '+fmt(Math.round(BB_2032*0.06))+'/yr at 6.0% payout.')
+      ),
+      e(SH,{n:'04',title:'Top Dividend Contributors'}),
+      e(Card,{style:{marginBottom:18}},
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'s'},'Symbol'),e(TH,{key:'m'},'Mkt Val'),e(TH,{key:'d'},'Div %'),e(TH,{key:'a'},'Annual Income')])),
+          e('tbody',null,TOP_DIVS.sort(function(a,b){return b.ann-a.ann;}).map(function(row){
+            return e('tr',{key:row.sym,style:{borderBottom:'1px solid '+C.border+'15'}},
+              e('td',{style:{padding:'5px 8px',color:C.gold,fontWeight:700}},row.sym),
+              e(TD,{mono:true},fmt(row.mv)),
+              e(TD,{color:C.silver},row.divPct.toFixed(2)+'%'),
+              e(TD,{color:C.inc1,mono:true},fmtF(row.ann))
+            );
+          }))
+        )
+      ),
+      e(SH,{n:'05',title:'Maximum Income Potential — All Sources (2051)'}),
+      e(Card,null,
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:16}},
+          [{l:'Portfolio Income (2051)',v:INC_PORT_ONLY[25].total,c:C.inc1,s:'Dividends + funds + munis'},{l:'Athene GLWB (start 2032)',v:INC_2032[25].atheneInc,c:C.an2,s:'Guaranteed for life'},{l:'NH Rental (2051, 3%/yr)',v:Math.round(NH_RENTAL_NET*Math.pow(1.03,25)),c:C.re2,s:'Net after mgmt fees'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmt(it.v)+'/yr',sub:it.s,accent:it.c,sm:true}));})
+        ),
+        e('div',{style:{textAlign:'center',padding:'14px',background:'rgba(56,189,248,0.08)',borderRadius:8,border:'1px solid rgba(56,189,248,0.2)'}},
+          e('div',{style:{fontSize:11,color:C.muted,marginBottom:6}},'Total Maximum Annual Income (2051) — Portfolio + Athene 2032 + NH Rental'),
+          e('div',{style:{fontSize:30,fontWeight:800,fontFamily:'monospace',color:C.s3}},fmt(INC_2032_NH[25].total)+'/yr'),
+          e('div',{style:{fontSize:12,color:C.muted,marginTop:6}},'vs today\'s '+fmt(CUR_TOTAL)+'/yr · ',e('span',{style:{color:C.s3}},(INC_2032_NH[25].total/CUR_TOTAL).toFixed(1)+'× increase over 25 years'))
+        )
+      )
+    ),
+
+    tab==='overview'&&e('div',null,
+      e(SH,{n:'01',title:'Total Estate Value'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:12}},
+        e(Card,{style:{borderTop:'2px solid '+C.gold}},e(Stat,{label:'Investment Portfolio',value:fmt(INVEST),sub:'+148% unrealized gain',accent:C.bull})),
+        e(Card,{style:{borderTop:'2px solid '+C.re1}},e(Stat,{label:'3685 Hebron Ave, Glastonbury CT',value:fmt(RE_CT),sub:'Primary residence',accent:C.re1})),
+        e(Card,{style:{borderTop:'2px solid '+C.re2}},e(Stat,{label:'82 Alexander Ave, Silver Lake NH',value:fmt(RE_NH),sub:"100' waterfront · sold $2.25M Nov 2025",accent:C.re2}))
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}},
+        e(Card,{style:{borderTop:'2px solid '+C.an1}},e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}},e(Stat,{label:'SB SGP Premium',value:fmt(500000),accent:C.muted,sm:true}),e(Stat,{label:'SB SGP Current AV',value:fmt(SB_CURRENT_AV),sub:'+34.8% vs premium',accent:C.an1,sm:true}),e(Stat,{label:'SB SGP 25yr AV',value:fmt(D25.an1),sub:'~4.5%/yr',accent:C.bull,sm:true}))),
+        e(Card,{style:{borderTop:'2px solid '+C.an2}},e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10}},e(Stat,{label:'Athene Premium',value:fmt(500000),accent:C.muted,sm:true}),e(Stat,{label:'Athene Current AV',value:fmt(ATH_CURRENT_AV),sub:'BB: '+fmt(ATH_CURRENT_BB),accent:C.an2,sm:true}),e(Stat,{label:'Athene 2051 Income',value:fmt(D25.an2bb*0.065)+'/yr',sub:'~6.5% on benefit base',accent:C.bull,sm:true})))
+      ),
+      e(Card,{style:{marginBottom:16,borderTop:'2px solid '+C.s3}},
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14}},
+          e(Stat,{label:'Total Estate Today',value:fmt(TOTAL),accent:C.s3}),
+          e(Stat,{label:'Current Annual Income',value:fmt(CUR_TOTAL)+'/yr',sub:'Portfolio only',accent:C.inc1}),
+          e(Stat,{label:'Income w/ Athene 2032',value:fmt(INC_2032[6].total)+'/yr',sub:'When surrender ends',accent:C.an2}),
+          e(Stat,{label:'Income in 2051 (all)',value:fmt(INC_2032_NH[25].total)+'/yr',sub:'+NH rental',accent:C.bull})
+        )
+      ),
+      e(Card,{style:{marginBottom:16}},
+        e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}},'Estate Allocation — '+fmt(TOTAL)),
+        e('div',{style:{display:'flex',height:14,borderRadius:6,overflow:'hidden',marginBottom:10}},
+          [{v:INVEST,c:C.gold},{v:RE_NH,c:C.re2},{v:RE_CT,c:C.re1},{v:SB_CURRENT_AV,c:C.an1},{v:ATH_CURRENT_AV,c:C.an2}].map(function(it,i){return e('div',{key:i,style:{width:(it.v/TOTAL*100)+'%',background:it.c,marginLeft:i>0?2:0}});})
+        ),
+        e('div',{style:{display:'flex',gap:16,flexWrap:'wrap',fontSize:12}},
+          [{l:'Investment Portfolio',v:INVEST,c:C.gold},{l:'Silver Lake NH',v:RE_NH,c:C.re2},{l:'Glastonbury CT',v:RE_CT,c:C.re1},{l:'SB Strategic Growth+',v:SB_CURRENT_AV,c:C.an1},{l:'Athene Agility 10',v:ATH_CURRENT_AV,c:C.an2}].map(function(it){
+            return e('div',{key:it.l,style:{display:'flex',alignItems:'center',gap:6}},e('div',{style:{width:9,height:9,borderRadius:2,background:it.c}}),e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:C.text,fontFamily:'monospace',fontWeight:600}},fmt(it.v)),e('span',{style:{color:C.muted}},'('+(it.v/TOTAL*100).toFixed(1)+'%)'));
+          })
+        )
+      ),
+      e(SH,{n:'02',title:'Property Detail'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+        [{title:'3685 Hebron Ave · Glastonbury, CT',color:C.re1,rows:[['Est. Market Value','$1,000,000'],['Avg Annual Tax','~$15,959–$18,000/yr'],['25yr @ 3%/yr',fmt(RE_CT*Math.pow(1.03,25))],['Estate Note','Step-up in basis at death (Living Trust)']]},{title:'82 Alexander Ave · Silver Lake, NH',color:C.re2,rows:[['Recent Sale','$2,250,000 (Nov 2025)'],['Size','4 bed · 2.5 ba · 3,110 sqft · 0.76 ac'],['Frontage',"100' east-facing Silver Lake shoreline"],['25yr @ 4%/yr',fmt(RE_NH*Math.pow(1.04,25))],['Rental Potential','~$30K–$50K/yr net'],['NH Advantage','No state income or estate tax']]}].map(function(prop){
+          return e(Card,{key:prop.title},e('div',{style:{fontSize:12,fontWeight:700,color:prop.color,marginBottom:10}},prop.title),prop.rows.map(function(r){return e(KV,{key:r[0],k:r[0],v:r[1]});}));
+        })
+      )
+    ),
+
+    tab==='annuities'&&e('div',null,
+      e(SH,{n:'01',title:'Current Annuity Snapshot',sub:'$500K premium each · 2022 · surrender ends 2032'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}},
+        e(Card,{style:{borderTop:'2px solid '+C.an1}},e(Stat,{label:'SB SGP Account Value',value:fmt(SB_CURRENT_AV),sub:'+'+fmt(SB_CURRENT_AV-500000)+' vs $500K',accent:C.bull})),
+        e(Card,{style:{borderTop:'2px solid '+C.an2}},e(Stat,{label:'Athene Account Value',value:fmt(ATH_CURRENT_AV),sub:'+'+fmt(ATH_CURRENT_AV-500000)+' vs $500K',accent:C.bull})),
+        e(Card,{style:{borderTop:'2px solid '+C.s2}},e(Stat,{label:'Athene Benefit Base',value:fmt(ATH_CURRENT_BB),sub:'20% bonus + 175% credit · 4 yrs',accent:C.s2})),
+        e(Card,{style:{borderTop:'2px solid '+C.gold}},e(Stat,{label:'Surrender Remaining',value:'6 Years',sub:'Both contracts end 2032',accent:C.gold}))
+      ),
+      e(SH,{n:'02',title:'Annuity Growth (25yr)'}),
+      e(Card,{style:{marginBottom:16}},
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Hover over chart for values. Gold line = surrender end 2032. Dashed = Athene benefit base (not walk-away money).'),
+        e(Legend,{series:[{key:'an1',name:'SB SGP Account Value',color:C.an1},{key:'an2',name:'Athene Account Value',color:C.an2},{key:'an2bb',name:'Athene Benefit Base',color:C.s2}]}),
+        e(LineChart,{data:ADATA,xKey:'yr',xFmt:xFmtYr,H:260,refLineX:2032,refLineLabel:'Surrender ends',series:[{key:'an1',name:'SB SGP AV',color:C.an1,width:2},{key:'an2',name:'Athene AV',color:C.an2,width:2},{key:'an2bb',name:'Athene Benefit Base',color:C.s2,width:2,dashed:true}]})
+      ),
+      e(SH,{n:'03',title:'Annuity Milestone Table'}),
+      e(Card,null,
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'sb'},'SB SGP AV'),e(TH,{key:'av'},'Athene AV'),e(TH,{key:'bb'},'Athene BB'),e(TH,{key:'inc'},'Est. Income @6.5%')])),
+          e('tbody',null,[2032,2036,2041,2046,2051].map(function(yr){
+            var d=ADATA[yr-2026];
+            return e('tr',{key:yr,style:{borderBottom:'1px solid '+C.border+'15',background:yr===2032?'rgba(201,168,76,0.06)':'transparent'}},
+              e('td',{style:{padding:'7px 10px',color:yr===2032?C.gold:C.text,fontWeight:yr===2032?700:400}},yr+(yr===2032?' ★':'')),
+              e(TD,{color:C.an1,mono:true},fmt(d.an1)),e(TD,{color:C.an2,mono:true},fmt(d.an2)),e(TD,{color:C.s2,mono:true},fmt(d.an2bb)),e(TD,{color:C.bull,mono:true},'~'+fmt(d.an2bb*0.065)+'/yr')
+            );
+          }))
+        ),
+        e('div',{style:{marginTop:8,fontSize:11,color:C.muted}},'★ Full liquidity restored 2032. Income estimate at 6.5% payout; actual rate is age-dependent.')
+      )
+    ),
+    tab==='projection'&&e('div',null,
+      e(SH,{n:'01',title:'Investment Portfolio — 25-Year Scenarios',sub:'Bull 8% · Base 5% · Bear 2%'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}},
+        [{l:'Bull Case (8%)',v:D25.bull,c:C.bull,s:'Strong markets'},{l:'Base Case (5%)',v:D25.base,c:C.base,s:'Historical average'},{l:'Bear Case (2%)',v:D25.bear,c:C.bear,s:'Rate headwinds'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmt(it.v),sub:it.s,accent:it.c}));})
+      ),
+      e(Card,{style:{marginBottom:18}},
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Investment portfolio only. Hover for values.'),
+        e(Legend,{series:[{key:'bull',name:'Bull (8%)',color:C.bull},{key:'base',name:'Base (5%)',color:C.base},{key:'bear',name:'Bear (2%)',color:C.bear}]}),
+        e(AreaChart,{data:ADATA,xKey:'yr',xFmt:xFmtYr,H:290,series:[{key:'bull',name:'Bull (8%)',color:C.bull,fillOpacity:0.12},{key:'base',name:'Base (5%)',color:C.base,fillOpacity:0},{key:'bear',name:'Bear (2%)',color:C.bear,fillOpacity:0.1,dashed:true}]})
+      ),
+      e(SH,{n:'02',title:'Total Estate — All Assets (Base Case)'}),
+      e(Card,{style:{marginBottom:18}},
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Investment + CT home (3%) + NH waterfront (4%) + annuities'),
+        e(Legend,{series:[{key:'totalBull',name:'Total Bull',color:C.bull},{key:'totalBase',name:'Total Base',color:C.s3},{key:'totalBear',name:'Total Bear',color:C.bear}]}),
+        e(AreaChart,{data:ADATA.map(function(d){return Object.assign({},d,{totalBase:d.base+d.reCT+d.reNH+d.an1+d.an2,totalBull:d.bull+d.reCT+d.reNH+d.an1+d.an2,totalBear:d.bear+d.reCT+d.reNH+d.an1+d.an2});}),xKey:'yr',xFmt:xFmtYr,H:260,series:[{key:'totalBull',name:'Total Bull',color:C.bull,noFill:true,dashed:true},{key:'totalBase',name:'Total Base',color:C.s3,fillOpacity:0.2},{key:'totalBear',name:'Total Bear',color:C.bear,noFill:true,dashed:true}]})
+      ),
+      e(SH,{n:'03',title:'Milestone Snapshots — All Assets'}),
+      e(Card,null,
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'b'},'Invest Bull'),e(TH,{key:'ba'},'Invest Base'),e(TH,{key:'be'},'Invest Bear'),e(TH,{key:'re'},'RE (Both)'),e(TH,{key:'an'},'Annuities'),e(TH,{key:'t'},'Total (Base)')])),
+          e('tbody',null,[5,10,15,20,25].map(function(y){
+            var d=ADATA[y];
+            return e('tr',{key:y,style:{borderBottom:'1px solid '+C.border+'15'}},
+              e(TD,{color:C.gold},d.yr),
+              e(TD,{color:C.bull,mono:true},fmt(d.bull)),
+              e(TD,{color:C.base,mono:true},fmt(d.base)),
+              e(TD,{color:C.bear,mono:true},fmt(d.bear)),
+              e(TD,{color:C.re1,mono:true},fmt(d.reCT+d.reNH)),
+              e(TD,{color:C.an1,mono:true},fmt(d.an1+d.an2)),
+              e(TD,{color:C.s3,mono:true},fmt(d.base+d.reCT+d.reNH+d.an1+d.an2))
+            );
+          }))
+        )
+      )
+    ),
+    tab==='s1'&&e('div',null,
+      e(SH,{n:'S1',title:'Tax-Loss Harvest Only'}),
+      e(Card,{style:{borderLeft:'3px solid '+C.s1,marginBottom:14,padding:'12px 16px'}},
+        e('div',{style:{fontSize:12,color:C.muted,lineHeight:1.7}},e('strong',{style:{color:C.text}},'Philosophy: '),'Harvest all 10 underwater positions to bank $18.9K in future tax credits. Zero allocation changes.')
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:16}},
+        e(Card,null,e(Stat,{label:'Harvestable Losses',value:fmt(79460),sub:'10 positions',accent:C.bear})),
+        e(Card,null,e(Stat,{label:'Tax Savings @ 23.8%',value:fmt(S1_SAV),sub:'Future offset',accent:C.bull})),
+        e(Card,null,e(Stat,{label:'25yr Terminal (Base)',value:fmt(D25.s1),sub:'+'+fmt(D25.s1-D25.base)+' vs baseline',accent:C.s1}))
+      ),
+      e(SH,{n:'01',title:'Positions to Liquidate'}),
+      e(Card,{style:{marginBottom:14}},
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'s'},'Symbol'),e(TH,{key:'n'},'Name'),e(TH,{key:'m'},'Mkt Val'),e(TH,{key:'c'},'Cost Basis'),e(TH,{key:'l'},'Unrealized Loss'),e(TH,{key:'t'},'Tax Credit')])),
+          e('tbody',null,
+            LOSSES.map(function(r){
+              return e('tr',{key:r.sym,style:{borderBottom:'1px solid '+C.border+'15'}},
+                e('td',{style:{padding:'6px 10px',color:C.gold,fontWeight:700}},r.sym),
+                e(TD,{color:C.silver},r.name),
+                e(TD,{mono:true},fmtF(r.mv)),
+                e(TD,{mono:true},fmtF(r.cb)),
+                e(TD,{color:C.bear,mono:true},'('+fmtF(Math.abs(r.loss))+')'),
+                e(TD,{color:C.bull,mono:true},fmtF(Math.abs(r.loss)*LT))
+              );
+            }).concat([
+              e('tr',{key:'tot',style:{borderTop:'1px solid '+C.border}},
+                e('td',{colSpan:4,style:{padding:'7px 10px',color:C.gold,fontWeight:700}},'TOTAL'),
+                e(TD,{color:C.bear,mono:true},e('strong',null,'('+fmtF(79460)+')')),
+                e(TD,{color:C.bull,mono:true},e('strong',null,fmtF(S1_SAV)))
+              )
+            ])
+          )
+        )
+      ),
+      e(SH,{n:'02',title:'Reinvestment Guide',sub:'31-day wait OR use non-substantially-identical securities'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+        [{sell:'TLRY',buy:'VCR (Consumer Disc ETF)',why:'No clean cannabis alternative'},{sell:'FIS',buy:'IPAY or add to ICE',why:'Fintech exposure preserved'},{sell:'APA + WDS',buy:'XOP or add to COP/EOG',why:'E&P without identical shares'},{sell:'BHC, VFC, CMP, KW',buy:'SCHD or VYM',why:'Consumer/materials via broad screen'},{sell:'ABEV, TEVA',buy:'Add to SCHE (already held)',why:'EM exposure, no wash-sale'},{sell:'PFE',buy:'Hold cash or add to ABBV/BMY',why:'Healthcare already well-represented'}].map(function(it){
+          return e(Card,{key:it.sell,style:{fontSize:12,padding:'12px 14px'}},
+            e('div',{style:{color:C.bear,fontWeight:600,marginBottom:3}},'Sell: '+it.sell),
+            e('div',{style:{color:C.bull,marginBottom:3}},'Buy: '+it.buy),
+            e('div',{style:{color:C.muted}},it.why)
+          );
+        })
+      )
+    ),
+
+    tab==='s2'&&e('div',null,
+      e(SH,{n:'S2',title:'Moderate Rebalance — 70/30 Target'}),
+      e(Card,{style:{borderLeft:'3px solid '+C.s2,marginBottom:14,padding:'12px 16px'}},
+        e('div',{style:{fontSize:12,color:C.muted,lineHeight:1.7}},e('strong',{style:{color:C.text}},'Philosophy: '),'Execute S1, then trim the 4 largest positions to 2.5% cap. Redeploy into international equity + REITs. Accept ~$24K net tax cost for +$1.93M at year 25.')
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:16}},
+        [{l:'Tax Savings (S1)',v:S1_SAV,c:C.bull},{l:'Tax Cost (Trimming)',v:S2_TAX,c:C.bear},{l:'Net Tax Cost',v:S2_TAX-S1_SAV,c:C.bear},{l:'25yr Terminal',v:D25.s2,c:C.s2}].map(function(it){
+          return e(Card,{key:it.l},e(Stat,{label:it.l,value:it.l==='25yr Terminal'?fmt(it.v)+' (+'+fmt(D25.s2-D25.base)+')':fmtF(it.v),accent:it.c}));
+        })
+      ),
+      e(SH,{n:'01',title:'Trim Oversized Positions — 2.5% cap'}),
+      e(Card,{style:{marginBottom:14}},
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'s'},'Symbol'),e(TH,{key:'m'},'Cur $'),e(TH,{key:'p'},'Cur %'),e(TH,{key:'t'},'Target'),e(TH,{key:'sell'},'Sell Amount'),e(TH,{key:'g'},'Gain'),e(TH,{key:'tax'},'Tax')])),
+          e('tbody',null,TRIM.map(function(r){
+            var sellMv=r.mv-(INVEST*0.025),gFrac=r.gain/r.mv;
+            return e('tr',{key:r.sym,style:{borderBottom:'1px solid '+C.border+'15'}},
+              e('td',{style:{padding:'6px 10px'}},e('span',{style:{color:C.gold,fontWeight:700}},r.sym),e('span',{style:{color:C.muted,fontSize:11}},' '+r.name)),
+              e(TD,{mono:true},fmtF(r.mv)),
+              e(TD,{color:C.bear},r.pct+'%'),
+              e(TD,{color:C.bull},'2.5%'),
+              e(TD,{mono:true},fmtF(sellMv)),
+              e(TD,{color:C.s2,mono:true},fmtF(sellMv*gFrac)),
+              e(TD,{color:C.bear,mono:true},fmtF(sellMv*gFrac*LT))
+            );
+          }))
+        )
+      ),
+      e(SH,{n:'02',title:'Redeploy + Tax Timeline'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}},
+        [{title:'Intl Developed ETF',ticker:'SCHF or VEA',amt:'~$100K',c:C.bull,d:'Target 10% intl weight. EUR/JPY diversification.'},{title:'REIT ETF',ticker:'VNQ or SCHH',amt:'~$50K',c:C.s2,d:'Target 5% RE allocation. Inflation hedge.'},{title:'Short-Duration Bond',ticker:'BSV or VGSH',amt:'~$45K',c:C.s1,d:'Balance long-duration muni ladder (2034–2056).'}].map(function(it){
+          return e(Card,{key:it.title},
+            e('div',{style:{color:it.c,fontWeight:700,marginBottom:4}},it.title),
+            e('div',{style:{fontFamily:'monospace',color:C.text,fontSize:12,marginBottom:5}},it.ticker+' · '+it.amt),
+            e('div',{style:{fontSize:11,color:C.muted}},it.d)
+          );
+        })
+      )
+    ),
+
+    tab==='s3'&&e('div',null,
+      e(SH,{n:'S3',title:'Full Optimization — Comprehensive Rebalance'}),
+      e(Card,{style:{borderLeft:'3px solid '+C.s3,marginBottom:14,padding:'12px 16px'}},
+        e('div',{style:{fontSize:12,color:C.muted,lineHeight:1.7}},e('strong',{style:{color:C.text}},'Philosophy: '),'S1 + S2 plus: hard 2% cap, exit all F-rated equities, full asset class build-out. +$4.15M vs baseline at year 25.')
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:16}},
+        [{l:'Tax Savings',v:S1_SAV,c:C.bull},{l:'Total Tax Cost',v:S3_TAX,c:C.bear},{l:'Net Tax Hit',v:S3_TAX-S1_SAV,c:C.bear},{l:'25yr Terminal',v:D25.s3,c:C.s3}].map(function(it){
+          return e(Card,{key:it.l},e(Stat,{label:it.l,value:it.l==='25yr Terminal'?fmt(it.v)+' (+'+fmt(D25.s3-D25.base)+')':fmtF(it.v),accent:it.c}));
+        })
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}},
+        e('div',null,
+          e(SH,{n:'01',title:'Exit F-Rated Positions'}),
+          e(Card,null,
+            e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+              e('thead',null,e('tr',null,[e(TH,{key:'s'},'Symbol'),e(TH,{key:'m'},'Mkt Val'),e(TH,{key:'g'},'Gain'),e(TH,{key:'t'},'Tax')])),
+              e('tbody',null,
+                FRATED.map(function(r){
+                  return e('tr',{key:r.sym,style:{borderBottom:'1px solid '+C.border+'15'}},
+                    e('td',{style:{padding:'5px 8px'}},e('div',{style:{color:C.gold,fontWeight:700}},r.sym),e('div',{style:{fontSize:10,color:C.muted}},r.name)),
+                    e(TD,{mono:true},fmtF(r.mv)),
+                    e(TD,{color:C.s2,mono:true},fmtF(r.gain)),
+                    e(TD,{color:C.bear,mono:true},fmtF(r.gain*LT))
+                  );
+                }).concat([
+                  e('tr',{key:'tot',style:{borderTop:'1px solid '+C.border}},
+                    e('td',{colSpan:2,style:{padding:'5px 8px',color:C.gold,fontWeight:700}},'TOTAL'),
+                    e(TD,{color:C.s2,mono:true},e('strong',null,fmtF(FRATED.reduce(function(s,f){return s+f.gain;},0)))),
+                    e(TD,{color:C.bear,mono:true},e('strong',null,fmtF(FRATED.reduce(function(s,f){return s+f.gain*LT;},0))))
+                  )
+                ])
+              )
+            )
+          )
+        ),
+        e('div',null,
+          e(SH,{n:'02',title:'Target Allocation Post-Rebalance'}),
+          e(Card,null,
+            [{cat:'US Equity',from:'87.9%',to:'60%',c:C.gold},{cat:'Intl Developed',from:'<1.5%',to:'10%',c:C.bull},{cat:'Emerging Mkts',from:'0.5%',to:'5%',c:C.s2},{cat:'REIT',from:'0%',to:'5%',c:C.re2},{cat:'Muni Bonds',from:'8%',to:'8%',c:C.base},{cat:'Short-Dur/TIPS',from:'0%',to:'7%',c:C.s1},{cat:'High-Yield',from:'2.2%',to:'3%',c:C.silver},{cat:'Cash',from:'0.5%',to:'2%',c:C.muted}].map(function(r){
+              return e('div',{key:r.cat,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid '+C.border+'15',fontSize:12}},
+                e('span',{style:{color:r.c,fontWeight:600}},r.cat),
+                e('span',null,e('span',{style:{color:C.bear}},r.from),e('span',{style:{color:C.muted}},' → '),e('span',{style:{color:C.bull}},r.to))
+              );
+            })
+          )
+        )
+      )
+    ),
+    tab==='compare'&&e('div',null,
+      e(SH,{n:'01',title:'Strategy Comparison — Investment Portfolio'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}},
+        [{l:'No Rebalance',v:D25.base,c:C.base,t:'$0 net tax',r:'5.0%/yr'},{l:'Strategy 1',v:D25.s1,c:C.s1,t:'+'+fmt(S1_SAV)+' savings',r:'5.1%/yr'},{l:'Strategy 2',v:D25.s2,c:C.s2,t:'-'+fmt(S2_TAX-S1_SAV)+' net',r:'5.5%/yr'},{l:'Strategy 3',v:D25.s3,c:C.s3,t:'-'+fmt(S3_TAX-S1_SAV)+' net',r:'6.0%/yr'}].map(function(it){
+          return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},
+            e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:5}},it.l),
+            e('div',{style:{fontSize:20,fontWeight:800,fontFamily:'monospace',color:it.c}},fmt(it.v)),
+            e('div',{style:{fontSize:11,color:C.muted,marginTop:3}},it.t),
+            e('div',{style:{fontSize:11,color:it.c,marginTop:2}},it.r)
+          );
+        })
+      ),
+      e(Card,{style:{marginBottom:18}},
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'All four strategy paths — investment portfolio only'),
+        e(Legend,{series:[{key:'base',name:'No Rebalance',color:C.base},{key:'s1',name:'Strategy 1',color:C.s1},{key:'s2',name:'Strategy 2',color:C.s2},{key:'s3',name:'Strategy 3',color:C.s3}]}),
+        e(LineChart,{data:ADATA,xKey:'yr',xFmt:xFmtYr,H:300,series:[{key:'base',name:'No Rebalance',color:C.base,dashed:true,width:1.5},{key:'s1',name:'Strategy 1',color:C.s1,width:2},{key:'s2',name:'Strategy 2',color:C.s2,width:2},{key:'s3',name:'Strategy 3',color:C.s3,width:2.5}]})
+      ),
+      e(SH,{n:'02',title:'Breakeven Analysis'}),
+      e(Card,{style:{marginBottom:18}},
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'s'},'Strategy'),e(TH,{key:'u'},'Upfront Tax'),e(TH,{key:'e'},'Annual Edge'),e(TH,{key:'b'},'Breakeven'),e(TH,{key:'d'},'25yr Delta')])),
+          e('tbody',null,[
+            {s:'Strategy 1',tc:'$0 (net positive)',e:'+0.1%/yr',by:'Immediate',d:D25.s1-D25.base,c:C.s1},
+            {s:'Strategy 2',tc:fmtF(S2_TAX),e:'+0.5%/yr',by:'Year 4–5',d:D25.s2-D25.base,c:C.s2},
+            {s:'Strategy 3',tc:fmtF(S3_TAX),e:'+1.0%/yr',by:'Year 5–7',d:D25.s3-D25.base,c:C.s3}
+          ].map(function(r){
+            return e('tr',{key:r.s,style:{borderBottom:'1px solid '+C.border+'15'}},
+              e(TD,{color:r.c},e('strong',null,r.s)),
+              e(TD,{mono:true},r.tc),
+              e(TD,{color:C.bull},r.e),
+              e(TD,{color:C.gold},r.by),
+              e(TD,{color:r.c,mono:true},e('strong',null,'+'+fmt(r.d)))
+            );
+          }))
+        )
+      ),
+      e(SH,{n:'03',title:'Full Estate Terminal — Strategy 3 + All Assets (2051)'}),
+      e(Card,null,
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'S3 investment + CT home + Silver Lake + both annuities'),
+        e(Legend,{series:[{key:'s3Total',name:'S3 + All Assets',color:C.s3},{key:'reStack',name:'Real Estate',color:C.re2},{key:'anStack',name:'Annuities',color:C.an1}]}),
+        e(AreaChart,{data:ADATA.map(function(d){return Object.assign({},d,{s3Total:d.s3+d.reCT+d.reNH+d.an1+d.an2,reStack:d.reCT+d.reNH,anStack:d.an1+d.an2});}),xKey:'yr',xFmt:xFmtYr,H:240,series:[{key:'s3Total',name:'S3 + All Assets',color:C.s3,fillOpacity:0.22},{key:'reStack',name:'Real Estate',color:C.re2,noFill:true,dashed:true},{key:'anStack',name:'Annuities',color:C.an1,noFill:true,dashed:true}]}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginTop:14}},
+          [{l:'Strategy 3',v:D25.s3,c:C.s3},{l:'Glastonbury CT',v:D25.reCT,c:C.re1},{l:'Silver Lake NH',v:D25.reNH,c:C.re2},{l:'SB Growth+',v:D25.an1,c:C.an1},{l:'Athene',v:D25.an2,c:C.an2}].map(function(it){
+            return e('div',{key:it.l,style:{textAlign:'center'}},
+              e('div',{style:{fontSize:10,color:C.muted,marginBottom:3,textTransform:'uppercase'}},it.l),
+              e('div',{style:{fontSize:16,fontWeight:800,fontFamily:'monospace',color:it.c}},fmt(it.v))
+            );
+          })
+        ),
+        e('div',{style:{textAlign:'center',marginTop:14,padding:'14px',background:'rgba(56,189,248,0.08)',borderRadius:8,border:'1px solid rgba(56,189,248,0.2)'}},
+          e('div',{style:{fontSize:11,color:C.muted,marginBottom:4}},'Total Estate Terminal Value — Strategy 3 + All Assets (2051)'),
+          e('div',{style:{fontSize:28,fontWeight:800,fontFamily:'monospace',color:C.s3}},fmt(D25.s3+D25.reNH+D25.reCT+D25.an1+D25.an2)),
+          e('div',{style:{display:'flex',justifyContent:'center',gap:24,marginTop:8,fontSize:12,flexWrap:'wrap'}},
+            e('span',{style:{color:C.muted}},'Today: ',e('span',{style:{color:C.text,fontWeight:600}},fmt(TOTAL))),
+            e('span',{style:{color:C.muted}},'Multiplier: ',e('span',{style:{color:C.s3,fontWeight:600}},((D25.s3+D25.reNH+D25.reCT+D25.an1+D25.an2)/TOTAL).toFixed(1)+'×')),
+            e('span',{style:{color:C.muted}},'Annual Income 2051: ',e('span',{style:{color:C.bull,fontWeight:600}},'~'+fmt(INC_2032_NH[25].total)+'/yr'))
+          )
+        ),
+        e('div',{style:{marginTop:12,padding:'10px 14px',background:'rgba(90,122,150,0.07)',border:'1px solid '+C.border,borderRadius:8,fontSize:11,color:C.muted,lineHeight:1.7}},
+          e('strong',{style:{color:C.silver}},'Disclaimer: '),
+          'Projections are illustrative only. Annuity values estimated from $500K premiums and documented product mechanics. Actual annuity performance depends on index selections and crediting rates which change annually. Tax rates assume 23.8% LT cap gains. Not investment advice.'
+        )
+      )
+    )
+  );
+}
+
+var domRoot=ReactDOM.createRoot(document.getElementById('root'));
+domRoot.render(React.createElement(App,null));
+document.getElementById('loading').style.display='none';
+document.getElementById('root').style.display='block';
+  </script>
+</body>
+</html>
