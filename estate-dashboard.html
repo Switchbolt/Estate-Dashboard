@@ -1193,10 +1193,11 @@ function App(){
   var totalUnrealGain=totalMvKnown-totalCostBasis;
   var yieldOnCost=totalCostBasis>0?DIV_ANNUAL_TOTAL/totalCostBasis*100:0;
   var _sTax=useState({filing:'mfj',state:'ct',wages:0,propTaxCT:17000,propTaxNH:40500,itemDed:0}),TAX=_sTax[0],setTAX=_sTax[1];
+  var _sRMD=useState({age:65,balance:0,convertAmt:50000}),RMDCFG=_sRMD[0],setRMDCFG=_sRMD[1];
   function fedBracketTax(inc,f){var b=f==='mfj'?[[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[1e9,.37]]:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[1e9,.37]];var t=0,p=0;for(var i=0;i<b.length;i++){var c=Math.min(inc,b[i][0])-p;if(c<=0)break;t+=c*b[i][1];p=b[i][0];}return Math.round(t);}
   function fedLtcgTax(q,ord,f){var th=f==='mfj'?[96700,600050]:[48350,533400];var t15=Math.max(0,Math.min(th[1],ord+q)-Math.max(th[0],ord));var t20=Math.max(0,ord+q-th[1]);return Math.round(t15*.15+t20*.20);}
   function ctTax(inc){var b=[[20000,.03],[100000,.05],[200000,.055],[250000,.06],[500000,.065],[1000000,.069],[1e9,.0699]];var t=0,p=0;for(var i=0;i<b.length;i++){var c=Math.min(inc,b[i][0])-p;if(c<=0)break;t+=c*b[i][1];p=b[i][0];}return Math.round(t);}
-  var tabs=[{k:'networth',l:'💎 Net Worth'},{k:'dividends',l:'💰 Dividends'},{k:'live',l:'🔴 Live'},{k:'income',l:'📈 Income'},{k:'taxes',l:'🧾 Tax Prep'},{k:'overview',l:'Overview'},{k:'annuities',l:'Annuities'},{k:'projection',l:'Projection'},{k:'s1',l:'Strategy 1'},{k:'s2',l:'Strategy 2'},{k:'s3',l:'Strategy 3'},{k:'compare',l:'Compare All'}];
+  var tabs=[{k:'networth',l:'💎 Net Worth'},{k:'dividends',l:'💰 Dividends'},{k:'live',l:'🔴 Live'},{k:'income',l:'📈 Income'},{k:'taxes',l:'🧾 Tax Prep'},{k:'rmd',l:'🏦 RMD & Roth'},{k:'estate',l:'🏛 Estate Plan'},{k:'overview',l:'Overview'},{k:'annuities',l:'Annuities'},{k:'projection',l:'Projection'},{k:'s1',l:'Strategy 1'},{k:'s2',l:'Strategy 2'},{k:'s3',l:'Strategy 3'},{k:'compare',l:'Compare All'}];
   var e=React.createElement;
   function tabBtn(k,l){return e('button',{key:k,onClick:function(){setTab(k);},style:{padding:'8px 14px',fontSize:11,fontWeight:tab===k?700:500,letterSpacing:'0.04em',textTransform:'uppercase',cursor:'pointer',borderRadius:6,border:'1px solid '+(tab===k?C.gold:C.border),background:tab===k?C.gold:'transparent',color:tab===k?'#080d18':C.silver}},l);}
 
@@ -1534,6 +1535,12 @@ function App(){
       var totalTax=fedTotal+stateAmt;
       var effRate=AGI>0?totalTax/AGI*100:0;
       var netAnnCTvsNH=ctStateAmt-(TAX.propTaxNH-TAX.propTaxCT);
+      var irmaaItbl=TAX.filing==='mfj'?[[206000,0,0,'No surcharge'],[258000,74.9,12.9,'Tier 1'],[322000,187.4,33.3,'Tier 2'],[386000,300,53.8,'Tier 3'],[750000,412.5,74.2,'Tier 4'],[Infinity,443.9,81,'Tier 5']]:[[103000,0,0,'No surcharge'],[129000,74.9,12.9,'Tier 1'],[161000,187.4,33.3,'Tier 2'],[193000,300,53.8,'Tier 3'],[500000,412.5,74.2,'Tier 4'],[Infinity,443.9,81,'Tier 5']];
+      var irmaaIdx=irmaaItbl.findIndex(function(t){return AGI<=t[0];});if(irmaaIdx<0)irmaaIdx=irmaaItbl.length-1;
+      var irmaaT=irmaaItbl[irmaaIdx],irmaaPpl=TAX.filing==='mfj'?2:1;
+      var irmaaAnn=Math.round((irmaaT[1]+irmaaT[2])*12*irmaaPpl);
+      var irmaaNxtIdx=irmaaIdx<irmaaItbl.length-1?irmaaIdx+1:-1;
+      var irmaaToNxt=irmaaNxtIdx>=0?irmaaItbl[irmaaNxtIdx][0]-AGI:null;
       return e('div',null,
         e(Card,{style:{marginBottom:14,padding:'12px 18px',background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.2)'}},
           e('div',{style:{display:'flex',gap:20,flexWrap:'wrap',alignItems:'center'}},
@@ -1668,6 +1675,233 @@ function App(){
               ?e('span',null,'CT adds ~6.5% state capital gains tax — ',e('strong',{style:{color:C.re1}},'additional '+fmtF(Math.round(238536*.065))+' on S3'),'.')
               :e('span',{style:{color:C.bull}},'NH advantage: zero state capital gains tax saves '+fmtF(Math.round(238536*.065))+' on S3 vs CT.'),
             e('div',{style:{marginTop:6,padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:6}},'Disclaimer: estimates only. Tax rates use 2025 brackets. Consult a CPA before executing rebalancing trades.')
+          )
+        ),
+        e(SH,{n:'06',title:'Medicare IRMAA Premium Surcharges',sub:'2025 rates · based on MAGI 2 years prior · affects Part B & D premiums'}),
+        e(Card,{style:{marginBottom:14}},
+          e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
+            [{l:'Current MAGI',v:fmtF(AGI),c:AGI>(TAX.filing==='mfj'?206000:103000)?C.bear:C.bull,s:irmaaT[3]+' · 2025 bracket'},{l:'IRMAA Surcharge/yr',v:irmaaAnn>0?fmtF(irmaaAnn)+'/yr':'$0 — None',c:irmaaAnn>0?C.bear:C.bull,s:irmaaAnn>0?'+$'+irmaaT[1]+'/mo Part B · +$'+irmaaT[2]+'/mo Part D · ×'+irmaaPpl+' people':'Below threshold'},{l:'Total Part B Premiums/yr',v:fmtF(Math.round((185+irmaaT[1])*12*irmaaPpl)),c:C.silver,s:'$185/mo base + $'+irmaaT[1]+'/mo surcharge × '+irmaaPpl+' people'},{l:'Buffer to Next Tier',v:irmaaToNxt!=null?fmtF(irmaaToNxt)+' headroom':'Max tier',c:irmaaToNxt!=null&&irmaaToNxt<25000?C.bear:C.bull,s:irmaaToNxt!=null?'Before '+irmaaItbl[irmaaNxtIdx][3]+' at $'+(irmaaItbl[irmaaNxtIdx][0]/1000).toFixed(0)+'K MAGI':'Maximum IRMAA tier reached'}].map(function(it){return e(Card,{key:it.l,style:{padding:'10px 12px',borderTop:'2px solid '+it.c}},e('div',{style:{fontSize:10,color:C.muted,marginBottom:3}},it.l),e('div',{style:{fontSize:14,fontWeight:800,fontFamily:'monospace',color:it.c}},it.v),e('div',{style:{fontSize:10,color:C.muted,marginTop:2}},it.s));})
+          ),
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:10}},
+            e('thead',null,e('tr',null,[e(TH,{key:'t'},'Tier'),e(TH,{key:'m'},'MAGI Threshold ('+( TAX.filing==='mfj'?'MFJ':'Single')+')'),e(TH,{key:'b'},'Part B Surcharge/mo'),e(TH,{key:'d'},'Part D Surcharge/mo'),e(TH,{key:'a'},'Annual / '+irmaaPpl+' people')])),
+            e('tbody',null,irmaaItbl.map(function(t,i){
+              var isCur=i===irmaaIdx,ann=Math.round((t[1]+t[2])*12*irmaaPpl);
+              return e('tr',{key:i,style:{borderBottom:'1px solid '+C.border+'15',background:isCur?'rgba(201,168,76,0.07)':'transparent',fontWeight:isCur?700:400}},
+                e(TD,{color:isCur?C.gold:C.muted},t[3]+(isCur?' ◀ YOU':'')),
+                e(TD,{color:C.silver,mono:true},t[0]===Infinity?'> $'+(irmaaItbl[i>0?i-1:0][0]/1000).toFixed(0)+'K':'≤ $'+(t[0]/1000).toFixed(0)+'K'),
+                e(TD,{color:t[1]>0?C.bear:C.bull,mono:true},t[1]>0?'+$'+t[1].toFixed(1):'-'),
+                e(TD,{color:t[2]>0?C.bear:C.bull,mono:true},t[2]>0?'+$'+t[2].toFixed(1):'-'),
+                e(TD,{color:ann>0?C.bear:C.bull,mono:true},ann>0?fmtF(ann):'$0')
+              );
+            }))
+          ),
+          irmaaToNxt!=null&&irmaaToNxt<30000&&e('div',{style:{padding:'8px 10px',background:'rgba(224,92,92,0.07)',borderRadius:6,border:'1px solid '+C.bear+'30',fontSize:11,color:C.muted,marginBottom:8}},
+            '⚠ ',e('strong',{style:{color:C.bear}},'Approaching next IRMAA tier:'),' Your MAGI is ',e('strong',{style:{color:C.text}},fmtF(irmaaToNxt)),' below the ',e('strong',null,irmaaItbl[irmaaNxtIdx][3]),' threshold. Consider muni bonds, HSA contributions, or deferring income to stay below $'+(irmaaItbl[irmaaNxtIdx][0]/1000).toFixed(0)+'K MAGI.'
+          ),
+          e('div',{style:{padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:6,fontSize:11,color:C.muted}},
+            'IRMAA uses MAGI from ',e('strong',{style:{color:C.silver}},'2 years prior'),' — 2026 premiums are based on your 2024 return. Recently retired with lower current income? File ',e('strong',null,'SSA-44'),' to appeal using current-year income. Note: muni bond interest counts in IRMAA MAGI even though it is federal-tax-exempt.'
+          )
+        )
+      );
+    })(),
+
+    tab==='rmd'&&(function(){
+      var RF={72:27.4,73:26.5,74:25.5,75:24.6,76:23.7,77:22.9,78:22.0,79:21.1,80:20.2,81:19.4,82:18.5,83:17.7,84:16.8,85:16.0,86:15.2,87:14.4,88:13.7,89:12.9,90:12.2,91:11.5,92:10.8,93:10.1,94:9.5,95:8.9,96:8.4,97:7.8,98:7.3,99:6.8,100:6.4};
+      var age=RMDCFG.age,bal0=RMDCFG.balance,convAmt=RMDCFG.convertAmt;
+      var yearsToRmd=Math.max(0,73-age),firstRmdYr=2026+yearsToRmd;
+      var rows=[],cb=bal0;
+      for(var y=0;y<20;y++){
+        var ca=age+y,yr=2026+y,f=RF[Math.max(72,Math.min(100,ca))];
+        var rmd=ca>=73&&cb>0?Math.round(cb/(f||1)):0;
+        var gr=Math.round(cb*0.06);
+        var nb=Math.max(0,Math.round(cb+gr-rmd));
+        rows.push({yr:yr,age:ca,f:ca>=72?f:null,rmd:rmd,gr:gr,nb:nb});
+        cb=nb;
+      }
+      var tot10=rows.slice(0,10).reduce(function(s,r){return s+r.rmd;},0);
+      var tot20=rows.reduce(function(s,r){return s+r.rmd;},0);
+      var firstRow=rows.find(function(r){return r.rmd>0;});
+      var qualDiv=Math.round(CUR.equityDiv*.85),ordDiv=Math.round(CUR.equityDiv*.15);
+      var ssOrd=Math.round(ssInc(0)*.85),penOrd=penInc(0);
+      var curOrd=TAX.wages+ordDiv+CUR.fundInc+CUR.cashInc+ssOrd+penOrd;
+      var stdDed=TAX.filing==='mfj'?30000:15000,ded=Math.max(stdDed,TAX.itemDed||0);
+      var ft0=fedBracketTax(Math.max(0,curOrd-ded),TAX.filing);
+      var ftC=fedBracketTax(Math.max(0,curOrd+convAmt-ded),TAX.filing);
+      var ctcost=ftC-ft0,ecr=convAmt>0?ctcost/convAmt*100:0;
+      var magiC=curOrd+qualDiv+convAmt,irmaaTh=TAX.filing==='mfj'?206000:103000;
+      return e('div',null,
+        e(Card,{style:{marginBottom:14,padding:'12px 18px',background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.2)'}},
+          e('div',{style:{display:'flex',gap:20,flexWrap:'wrap',alignItems:'center'}},
+            e('span',{style:{fontSize:12,color:C.gold,fontWeight:700}},'IRA / 401(k) Configuration'),
+            e('div',{style:{display:'flex',alignItems:'center',gap:6}},
+              e('span',{style:{fontSize:11,color:C.muted}},'Current Age:'),
+              e('input',{type:'number',value:age,min:55,max:100,step:1,onChange:function(ev){setRMDCFG(Object.assign({},RMDCFG,{age:parseInt(ev.target.value)||65}));},style:{width:70,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'5px 8px',fontSize:13,fontWeight:700,color:C.gold,outline:'none',fontFamily:'monospace'}})
+            ),
+            e('div',{style:{display:'flex',alignItems:'center',gap:6}},
+              e('span',{style:{fontSize:11,color:C.muted}},'IRA / 401(k) Balance: $'),
+              e('input',{type:'number',value:bal0,min:0,step:10000,onChange:function(ev){setRMDCFG(Object.assign({},RMDCFG,{balance:parseInt(ev.target.value)||0}));},style:{width:130,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'5px 8px',fontSize:13,fontWeight:700,color:C.gold,outline:'none',fontFamily:'monospace'}})
+            ),
+            e('span',{style:{fontSize:11,color:C.muted}},'(separate from the brokerage portfolio shown in other tabs)')
+          )
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
+          [{l:'RMD Starts',v:age>=73?'Now (Active)':'Age 73 · '+firstRmdYr,c:age>=73?C.bear:C.gold,s:age>=73?'Already in distribution phase':'SECURE 2.0 · born 1951–1959'},{l:'First RMD Amount',v:firstRow?fmtF(firstRow.rmd):(bal0>0?'$0 (pre-RMD)':'Enter balance above'),c:firstRow&&firstRow.rmd>0?C.bear:C.muted,s:firstRow&&firstRow.rmd>0?'At age '+firstRow.age+' · factor '+firstRow.f+'x':'No balance entered'},{l:'10-Year Total RMDs',v:fmtF(tot10),c:tot10>0?C.bear:C.muted,s:'Forced ordinary taxable income'},{l:'Balance at Year 20',v:fmtF(rows[19]?rows[19].nb:0),c:C.gold,s:'After 20yr RMDs + 6% annual growth'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:it.v,sub:it.s,accent:it.c}));})
+        ),
+        e(SH,{n:'01',title:'20-Year RMD Schedule',sub:'IRS Uniform Lifetime Table 2022 · assumes 6%/yr account growth'}),
+        e(Card,{style:{marginBottom:14}},
+          bal0===0
+            ?e('div',{style:{padding:'20px',color:C.muted,fontSize:12,textAlign:'center',fontStyle:'italic'}},'Enter an IRA/401(k) balance above to generate the required distribution schedule.')
+            :e('div',null,
+              e('div',{style:{maxHeight:420,overflowY:'auto'}},
+                e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+                  e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'a'},'Age'),e(TH,{key:'f'},'IRS Factor'),e(TH,{key:'r'},'RMD Required'),e(TH,{key:'g'},'6% Growth'),e(TH,{key:'b'},'Year-End Balance'),e(TH,{key:'t'},'Est. Fed Tax @22%')])),
+                  e('tbody',null,rows.map(function(r,i){
+                    var isFirst=firstRow&&r.yr===firstRow.yr;
+                    return e('tr',{key:r.yr,style:{borderBottom:'1px solid '+C.border+'15',background:isFirst?'rgba(224,92,92,0.05)':i%2===0?'transparent':'rgba(255,255,255,0.01)',fontWeight:isFirst?700:400}},
+                      e(TD,{color:r.rmd>0?C.bear:C.muted},r.yr+(isFirst?' ★':'')),
+                      e(TD,{color:r.rmd>0?C.text:C.muted},r.age),
+                      e(TD,{color:C.muted,mono:true},r.f?r.f.toFixed(1):'—'),
+                      e(TD,{color:r.rmd>0?C.bear:C.border,mono:true},r.rmd>0?fmtF(r.rmd):'—'),
+                      e(TD,{color:C.bull,mono:true},fmtF(r.gr)),
+                      e(TD,{color:C.text,mono:true},fmtF(r.nb)),
+                      e(TD,{color:r.rmd>0?C.bear:C.border,mono:true},r.rmd>0?fmtF(Math.round(r.rmd*0.22)):'—')
+                    );
+                  }))
+                )
+              ),
+              e('div',{style:{display:'flex',gap:20,marginTop:10,fontSize:12,flexWrap:'wrap'}},
+                e('span',{style:{color:C.muted}},'10yr total: ',e('span',{style:{color:C.bear,fontWeight:700}},fmtF(tot10))),
+                e('span',{style:{color:C.muted}},'20yr total: ',e('span',{style:{color:C.bear,fontWeight:700}},fmtF(tot20))),
+                e('span',{style:{color:C.muted}},'Remaining balance: ',e('span',{style:{color:C.gold,fontWeight:700}},fmtF(rows[19]?rows[19].nb:0)))
+              ),
+              e('div',{style:{marginTop:8,padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:6,fontSize:11,color:C.muted}},
+                '★ First RMD year. Tax at 22% is estimated — use Tax Prep tab for precision. First RMD can be delayed to April 1 of the following year, but triggers two RMDs in year two. RMDs count as ordinary income and raise IRMAA MAGI.'
+              )
+            )
+        ),
+        e(SH,{n:'02',title:'Roth Conversion Planner',sub:'Tax cost to convert IRA to Roth now · fill lower brackets before SS and RMDs begin'}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}},
+          e(Card,null,
+            e('div',{style:{fontSize:13,fontWeight:700,color:C.s3,marginBottom:12}},'Conversion Amount This Year'),
+            e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:12}},
+              e('span',{style:{color:C.muted}},'Convert: $'),
+              e('input',{type:'number',value:convAmt,min:0,step:5000,onChange:function(ev){setRMDCFG(Object.assign({},RMDCFG,{convertAmt:parseInt(ev.target.value)||0}));},style:{width:120,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.s3+'60',borderRadius:5,padding:'6px 9px',fontSize:14,fontWeight:700,color:C.s3,outline:'none',fontFamily:'monospace'}})
+            ),
+            e('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}},
+              [25000,50000,75000,100000,150000].map(function(amt){return e('button',{key:amt,onClick:function(){setRMDCFG(Object.assign({},RMDCFG,{convertAmt:amt}));},style:{padding:'5px 9px',fontSize:11,cursor:'pointer',borderRadius:5,border:'1px solid '+(convAmt===amt?C.s3:C.border),background:convAmt===amt?C.s3+'20':'transparent',color:convAmt===amt?C.s3:C.muted,fontWeight:convAmt===amt?700:400}},'$'+(amt/1000)+'K');})
+            ),
+            [{l:'Current Ordinary Income',v:fmtF(curOrd),c:C.muted},{l:'After-Conversion Ordinary Inc.',v:fmtF(curOrd+convAmt),c:C.text},{l:'Federal Tax — Baseline',v:fmtF(ft0),c:C.muted},{l:'Federal Tax — With Conversion',v:fmtF(ftC),c:C.bear},{l:'Conversion Tax Cost',v:fmtF(ctcost),c:C.bear,strong:true},{l:'Effective Conversion Rate',v:ecr.toFixed(1)+'%',c:ecr>28?C.bear:C.bull,strong:true}].map(function(it){
+              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid '+C.border+'10',fontSize:12}},
+                e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:it.c,fontFamily:'monospace',fontWeight:it.strong?800:600}},it.v)
+              );
+            }),
+            TAX.state==='ct'&&convAmt>0&&e('div',{style:{marginTop:8,padding:'6px 10px',background:C.re1+'12',borderRadius:5,fontSize:11,color:C.muted}},
+              'CT adds ~5.5% on conversion: ',e('strong',{style:{color:C.re1}},fmtF(Math.round(convAmt*.055))),'. NH state tax: $0.'
+            )
+          ),
+          e(Card,null,
+            e('div',{style:{fontSize:13,fontWeight:700,color:C.s3,marginBottom:12}},'Should You Convert?'),
+            e('div',{style:{padding:'11px 13px',background:'rgba(56,189,248,0.06)',borderRadius:8,border:'1px solid '+C.s3+'25',marginBottom:12}},
+              [{txt:'Effective rate ('+ecr.toFixed(1)+'%) is below expected future RMD rate',ok:ecr<24},{txt:'MAGI stays below IRMAA threshold ($'+(irmaaTh/1e3)+'K) after conversion',ok:magiC<irmaaTh},{txt:'Before SS starts ('+SS.startYear+') — ordinary income is lower now',ok:2026<SS.startYear},{txt:'Years before first RMD for tax-free compounding',ok:yearsToRmd>=5},{txt:'Heirs inherit Roth: 10yr tax-free growth, no RMDs required',ok:true}].map(function(it,i){
+                return e('div',{key:i,style:{display:'flex',gap:8,alignItems:'flex-start',fontSize:11,marginBottom:5,opacity:it.ok?1:0.55}},
+                  e('span',{style:{color:it.ok?C.bull:C.muted,flexShrink:0}},(it.ok?'✓':'○')),
+                  e('span',{style:{color:it.ok?C.text:C.muted}},it.txt)
+                );
+              })
+            ),
+            [{l:'MAGI after conversion',v:fmtF(magiC),c:magiC>irmaaTh?C.bear:C.bull},{l:'State tax ('+TAX.state.toUpperCase()+')',v:TAX.state==='ct'?fmtF(Math.round(convAmt*.055)):'$0',c:TAX.state==='ct'?C.re1:C.bull},{l:'Tax-free Roth balance gained',v:fmtF(Math.max(0,convAmt-ctcost)),c:C.bull},{l:'Best window',v:SS.startYear>2026?'Now through '+(SS.startYear-1):'SS already started',c:C.s2}].map(function(it){
+              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:6,padding:'4px 0',borderBottom:'1px solid '+C.border+'10'}},
+                e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:it.c,fontWeight:700,fontFamily:'monospace'}},it.v)
+              );
+            }),
+            e('div',{style:{marginTop:8,fontSize:11,color:C.muted,lineHeight:1.6}},
+              'Strategy: convert annually before SS starts (',e('strong',null,SS.startYear),') when ordinary income is lower. Fill up the 22% bracket without breaching IRMAA at $'+(irmaaTh/1e3).toFixed(0)+'K MAGI. Roth has no lifetime RMDs and heirs get 10 years of tax-free growth on inherited balances.'
+            )
+          )
+        )
+      );
+    })(),
+
+    tab==='estate'&&(function(){
+      var estTotal=INVEST+curCT+curNH+SB_CURRENT_AV+ATH_CURRENT_AV+MUNIS_MV+FUNDS_MV+CASH_MV;
+      var fedEx=13990000,fedExSunset=7000000,ctEx=12920000;
+      var fedExp=Math.max(0,estTotal-fedEx),sunsetExp=Math.max(0,estTotal-fedExSunset),ctExp=Math.max(0,estTotal-ctEx);
+      var sunsetTax=sunsetExp>0?Math.round(sunsetExp*0.40):0;
+      return e('div',null,
+        e(Card,{style:{marginBottom:14,padding:'18px 22px',background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.25)'}},
+          e('div',{style:{display:'grid',gridTemplateColumns:'1fr auto',gap:20,alignItems:'start'}},
+            e('div',null,
+              e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}},'Total Estate Value — Feb 2026 Snapshot'),
+              e('div',{style:{fontSize:36,fontWeight:900,fontFamily:'monospace',color:C.gold,letterSpacing:'-0.03em'}},'$'+(estTotal/1e6).toFixed(2)+'M'),
+              e('div',{style:{fontSize:12,color:C.muted,marginTop:8,display:'flex',gap:20,flexWrap:'wrap'}},
+                e('span',null,'Federal Exemption (2025): ',e('span',{style:{color:C.bull,fontWeight:600}},'$'+(fedEx/1e6).toFixed(2)+'M/person')),
+                e('span',null,'CT Threshold: ',e('span',{style:{color:C.re1,fontWeight:600}},'$'+(ctEx/1e6).toFixed(2)+'M')),
+                e('span',null,'Sunset Scenario: ',e('span',{style:{color:C.bear,fontWeight:600}},'~$'+(fedExSunset/1e6).toFixed(0)+'M/person if TCJA expired'))
+              )
+            ),
+            e('div',{style:{textAlign:'right'}},
+              e('div',{style:{fontSize:10,color:C.muted,marginBottom:4,textTransform:'uppercase'}},'Federal Status'),
+              e('div',{style:{fontSize:18,fontWeight:800,fontFamily:'monospace',color:fedExp>0?C.bear:C.bull}},fedExp>0?'OVER THRESHOLD':'✓ Below $13.99M')
+            )
+          )
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
+          [{l:'Federal Buffer (2025 law)',v:fedExp>0?'+'+fmtF(fedExp)+' over limit':fmtF(fedEx-estTotal)+' below threshold',c:fedExp>0?C.bear:C.bull,s:fedExp>0?'40% federal estate tax on excess':'Well below $13.99M per-person limit'},{l:'Sunset Risk (~$7M/person)',v:sunsetExp>0?'+'+fmtF(sunsetExp)+' at risk':fmtF(fedExSunset-estTotal)+' below sunset limit',c:sunsetExp>0?C.bear:C.bull,s:sunsetExp>0?'~'+fmtF(sunsetTax)+' potential tax if reverted':'Verify current federal exemption amount'},{l:'CT Estate Tax Buffer',v:ctExp>0?'+'+fmtF(ctExp)+' over CT limit':fmtF(ctEx-estTotal)+' below CT threshold',c:ctExp>0?C.re1:C.bull,s:'CT: ~12% rate on excess over $12.92M'},{l:'NH Estate Tax',v:'None',c:C.bull,s:'NH has no estate or inheritance tax'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:it.v,sub:it.s,accent:it.c}));})
+        ),
+        e(SH,{n:'01',title:'Estate Growth vs. Tax Thresholds',sub:'Will the estate outgrow the exemptions? Base 5%/yr projection'}),
+        e(Card,{style:{marginBottom:14}},
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:10}},
+            e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'e'},'Estate Value'),e(TH,{key:'f'},'vs $13.99M Federal'),e(TH,{key:'s'},'vs $7M Sunset'),e(TH,{key:'c'},'vs CT $12.92M'),e(TH,{key:'t'},'Sunset Tax Exposure')])),
+            e('tbody',null,[0,5,10,15,20,25].map(function(y){
+              var ev=Math.round(estTotal*Math.pow(1.05,y));
+              var fE=Math.max(0,ev-fedEx),sE=Math.max(0,ev-fedExSunset),cE=Math.max(0,ev-ctEx);
+              var sTax=sE>0?Math.round(sE*0.4):0;
+              return e('tr',{key:y,style:{borderBottom:'1px solid '+C.border+'15',background:sE>0?'rgba(224,92,92,0.04)':'transparent',fontWeight:sE>0?600:400}},
+                e(TD,{color:C.gold},2026+y),
+                e(TD,{color:C.text,mono:true},'$'+(ev/1e6).toFixed(2)+'M'),
+                e(TD,{color:fE>0?C.bear:C.bull,mono:true},fE>0?'+'+fmtF(fE)+' over':fmtF(fedEx-ev)+' buffer'),
+                e(TD,{color:sE>0?C.bear:C.bull,mono:true},sE>0?'+'+fmtF(sE)+' exposed':fmtF(fedExSunset-ev)+' buffer'),
+                e(TD,{color:cE>0?C.re1:C.bull,mono:true},cE>0?'+'+fmtF(cE)+' over CT':fmtF(ctEx-ev)+' buffer'),
+                e(TD,{color:sTax>0?C.bear:C.bull,mono:true},sTax>0?fmtF(sTax):'$0')
+              );
+            }))
+          ),
+          e('div',{style:{fontSize:11,color:C.muted,lineHeight:1.7}},'Estate grows at 5%/yr base case. The Living Trust structure is already in place. For married couples, portability allows the surviving spouse to use the deceased spouse\'s unused exemption — potentially doubling the available shield. Verify current federal exemption with your estate attorney, as TCJA provisions were scheduled to sunset December 31, 2025.')
+        ),
+        e(SH,{n:'02',title:'Estate Planning Strategies'}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
+          e(Card,null,
+            e('div',{style:{fontSize:13,fontWeight:700,color:C.gold,marginBottom:10}},'🎁 Annual Gift Exclusion'),
+            e('div',{style:{fontSize:24,fontWeight:800,fontFamily:'monospace',color:C.gold,marginBottom:4}},'$19,000 / recipient'),
+            e('div',{style:{fontSize:11,color:C.muted,marginBottom:12}},'Per person · per year · 2025 · indexed to inflation · no limit on recipients'),
+            [{l:'3 recipients/yr',v:'$57,000/yr removed'},{l:'5 recipients/yr',v:'$95,000/yr removed'},{l:'5 recipients over 10 years',v:fmtF(19000*5*10)+' from estate'},{l:'Direct tuition/medical payments',v:'Unlimited (paid to institution)'}].map(function(it){
+              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0',borderBottom:'1px solid '+C.border+'10'}},
+                e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:C.gold,fontWeight:600}},it.v)
+              );
+            }),
+            e('div',{style:{marginTop:10,fontSize:11,color:C.muted,lineHeight:1.6}},'Annual exclusion gifts do NOT reduce the lifetime estate/gift exemption. Direct tuition and medical payments to providers are also excluded from gift tax with no dollar limit.')
+          ),
+          e(Card,null,
+            e('div',{style:{fontSize:13,fontWeight:700,color:C.bull,marginBottom:10}},'📈 Step-Up in Basis at Death'),
+            e('div',{style:{fontSize:11,color:C.muted,marginBottom:10}},'Assets in the Living Trust receive a ',e('strong',{style:{color:C.bull}},'stepped-up cost basis'),' at death — all unrealized gains are eliminated for heirs:'),
+            [{l:'Tracked cost basis',v:fmtF(totalCostBasis),c:C.silver},{l:'Market value (tracked)',v:fmtF(totalMvKnown),c:C.gold},{l:'Unrealized gain eliminated at death',v:fmtF(totalUnrealGain),c:C.bull},{l:'Capital gains tax avoided (23.8%)',v:fmtF(Math.round(totalUnrealGain*.238)),c:C.bull},{l:'Stepped-up/unknown basis positions',v:(HOLDINGS.length-_kb.length)+' of '+HOLDINGS.length+' positions',c:C.muted}].map(function(it){
+              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'5px 0',borderBottom:'1px solid '+C.border+'10'}},
+                e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:it.c,fontWeight:600,fontFamily:'monospace'}},it.v)
+              );
+            }),
+            e('div',{style:{marginTop:10,padding:'8px 10px',background:C.bull+'08',borderRadius:6,border:'1px solid '+C.bull+'20',fontSize:11,color:C.muted}},'The Living Trust already ensures step-up at death. Holding appreciated positions through death eliminates capital gains tax entirely for heirs. This makes selling appreciated stock during life expensive relative to holding.')
+          )
+        ),
+        e(Card,null,
+          e('div',{style:{fontSize:13,fontWeight:700,color:C.s3,marginBottom:12}},'Key Estate Planning Notes'),
+          e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}},
+            [{icon:'📋',t:'Living Trust',d:'Already established. Assets pass outside probate. Avoids CT/NH probate costs (~2–5% of estate). Successor trustee takes over seamlessly with no court involvement.'},{icon:'⚖️',t:'TCJA Sunset Risk',d:'Federal exemption was scheduled to revert to ~$7M per person after 2025. Confirm current exemption amount with your estate attorney — this significantly changes planning needs.'},{icon:'🔄',t:'Roth Strategy',d:'Converting IRA to Roth reduces future estate size (taxes paid now while rates are lower) and heirs inherit tax-free accounts with a 10-year window of tax-free growth, no RMDs.'}].map(function(it){
+              return e('div',{key:it.t,style:{padding:'12px',background:'rgba(255,255,255,0.025)',borderRadius:8,border:'1px solid '+C.border}},
+                e('div',{style:{fontSize:16,marginBottom:6}},it.icon),
+                e('div',{style:{fontSize:12,fontWeight:700,color:C.text,marginBottom:4}},it.t),
+                e('div',{style:{fontSize:11,color:C.muted,lineHeight:1.6}},it.d)
+              );
+            })
           )
         )
       );
