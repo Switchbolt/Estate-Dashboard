@@ -1192,7 +1192,11 @@ function App(){
   var totalMvKnown=_kb.reduce(function(s,h){return s+h.snapMv;},0);
   var totalUnrealGain=totalMvKnown-totalCostBasis;
   var yieldOnCost=totalCostBasis>0?DIV_ANNUAL_TOTAL/totalCostBasis*100:0;
-  var tabs=[{k:'networth',l:'💎 Net Worth'},{k:'dividends',l:'💰 Dividends'},{k:'live',l:'🔴 Live'},{k:'income',l:'📈 Income'},{k:'overview',l:'Overview'},{k:'annuities',l:'Annuities'},{k:'projection',l:'Projection'},{k:'s1',l:'Strategy 1'},{k:'s2',l:'Strategy 2'},{k:'s3',l:'Strategy 3'},{k:'compare',l:'Compare All'}];
+  var _sTax=useState({filing:'mfj',state:'ct',wages:0,propTaxCT:17000,propTaxNH:40500,itemDed:0}),TAX=_sTax[0],setTAX=_sTax[1];
+  function fedBracketTax(inc,f){var b=f==='mfj'?[[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[1e9,.37]]:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[1e9,.37]];var t=0,p=0;for(var i=0;i<b.length;i++){var c=Math.min(inc,b[i][0])-p;if(c<=0)break;t+=c*b[i][1];p=b[i][0];}return Math.round(t);}
+  function fedLtcgTax(q,ord,f){var th=f==='mfj'?[96700,600050]:[48350,533400];var t15=Math.max(0,Math.min(th[1],ord+q)-Math.max(th[0],ord));var t20=Math.max(0,ord+q-th[1]);return Math.round(t15*.15+t20*.20);}
+  function ctTax(inc){var b=[[20000,.03],[100000,.05],[200000,.055],[250000,.06],[500000,.065],[1000000,.069],[1e9,.0699]];var t=0,p=0;for(var i=0;i<b.length;i++){var c=Math.min(inc,b[i][0])-p;if(c<=0)break;t+=c*b[i][1];p=b[i][0];}return Math.round(t);}
+  var tabs=[{k:'networth',l:'💎 Net Worth'},{k:'dividends',l:'💰 Dividends'},{k:'live',l:'🔴 Live'},{k:'income',l:'📈 Income'},{k:'taxes',l:'🧾 Tax Prep'},{k:'overview',l:'Overview'},{k:'annuities',l:'Annuities'},{k:'projection',l:'Projection'},{k:'s1',l:'Strategy 1'},{k:'s2',l:'Strategy 2'},{k:'s3',l:'Strategy 3'},{k:'compare',l:'Compare All'}];
   var e=React.createElement;
   function tabBtn(k,l){return e('button',{key:k,onClick:function(){setTab(k);},style:{padding:'8px 14px',fontSize:11,fontWeight:tab===k?700:500,letterSpacing:'0.04em',textTransform:'uppercase',cursor:'pointer',borderRadius:6,border:'1px solid '+(tab===k?C.gold:C.border),background:tab===k?C.gold:'transparent',color:tab===k?'#080d18':C.silver}},l);}
 
@@ -1501,6 +1505,173 @@ function App(){
         )
       )
     ),
+
+    tab==='taxes'&&(function(){
+      var qualDiv=Math.round(CUR.equityDiv*.85),ordDiv=Math.round(CUR.equityDiv*.15);
+      var ssOrd=Math.round(ssInc(0)*.85),penOrd=penInc(0);
+      var stdDed=TAX.filing==='mfj'?30000:15000;
+      var ded=Math.max(stdDed,TAX.itemDed||0);
+      var ordRows=[
+        {l:'Wages / Other Income',v:TAX.wages,c:C.text},
+        {l:'Ordinary Dividends (~15%)',v:ordDiv,c:C.gold},
+        {l:'Fund Distributions (PDI/CEF)',v:CUR.fundInc,c:C.an1},
+        {l:'Cash / Money Market Interest',v:CUR.cashInc,c:C.silver},
+        {l:'Social Security (85% taxable)',v:ssOrd,c:C.s2},
+        {l:'Pension Income',v:penOrd,c:C.re2},
+      ];
+      var totalOrd=ordRows.reduce(function(s,r){return s+r.v;},0);
+      var taxableOrd=Math.max(0,totalOrd-ded);
+      var fedOrd=fedBracketTax(taxableOrd,TAX.filing);
+      var fedLtcg=fedLtcgTax(qualDiv,taxableOrd,TAX.filing);
+      var AGI=totalOrd+qualDiv;
+      var niitThresh=TAX.filing==='mfj'?250000:200000;
+      var investInc=ordDiv+qualDiv+CUR.fundInc+CUR.cashInc;
+      var niit=AGI>niitThresh?Math.round(Math.min(investInc,AGI-niitThresh)*.038):0;
+      var fedTotal=fedOrd+fedLtcg+niit;
+      var ctStateInc=totalOrd+qualDiv;
+      var ctStateAmt=ctTax(ctStateInc);
+      var stateAmt=TAX.state==='ct'?ctStateAmt:0;
+      var totalTax=fedTotal+stateAmt;
+      var effRate=AGI>0?totalTax/AGI*100:0;
+      var netAnnCTvsNH=ctStateAmt-(TAX.propTaxNH-TAX.propTaxCT);
+      return e('div',null,
+        e(Card,{style:{marginBottom:14,padding:'12px 18px',background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.2)'}},
+          e('div',{style:{display:'flex',gap:20,flexWrap:'wrap',alignItems:'center'}},
+            e('span',{style:{fontSize:12,color:C.gold,fontWeight:700}},'Tax Profile 2026'),
+            e('div',{style:{display:'flex',alignItems:'center',gap:8}},
+              e('span',{style:{fontSize:11,color:C.muted}},'Filing Status:'),
+              [{v:'mfj',l:'Married Filing Jointly'},{v:'single',l:'Single'}].map(function(opt){return e(Pill,{key:opt.v,active:TAX.filing===opt.v,color:C.gold,onClick:function(){setTAX(Object.assign({},TAX,{filing:opt.v}));}},opt.l);})
+            ),
+            e('div',{style:{display:'flex',alignItems:'center',gap:8}},
+              e('span',{style:{fontSize:11,color:C.muted}},'State:'),
+              [{v:'ct',l:'Connecticut',c:C.re1},{v:'nh',l:'New Hampshire',c:C.bull}].map(function(opt){return e(Pill,{key:opt.v,active:TAX.state===opt.v,color:opt.c,onClick:function(){setTAX(Object.assign({},TAX,{state:opt.v}));}},opt.l);})
+            ),
+            e('div',{style:{display:'flex',alignItems:'center',gap:6}},
+              e('span',{style:{fontSize:11,color:C.muted}},'Other Wages: $'),
+              e('input',{type:'number',value:TAX.wages,min:0,step:1000,onChange:function(ev){setTAX(Object.assign({},TAX,{wages:parseInt(ev.target.value)||0}));},style:{width:110,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'5px 8px',fontSize:13,fontWeight:600,color:C.text,outline:'none',fontFamily:'monospace'}})
+            )
+          )
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
+          [{l:'Federal Tax',v:fedTotal,c:C.bear,s:'Income + LTCG + NIIT'},{l:'State Tax ('+(TAX.state==='ct'?'CT':'NH')+')',v:stateAmt,c:TAX.state==='ct'?C.re1:C.bull,s:TAX.state==='ct'?'CT income tax':'No state income tax'},{l:'Total Tax Burden',v:totalTax,c:C.bear,s:effRate.toFixed(1)+'% effective rate'},{l:'After-Tax Income',v:Math.max(0,Math.round(AGI-totalTax)),c:C.bull,s:'Net spendable income'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmtF(it.v),sub:it.s,accent:it.c}));})
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
+          e(Card,null,
+            e(SH,{n:'01',title:'2026 Income by Type'}),
+            e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+              e('thead',null,e('tr',null,[e(TH,{key:'s'},'Source'),e(TH,{key:'a'},'Amount'),e(TH,{key:'t'},'Treatment')])),
+              e('tbody',null,
+                ordRows.filter(function(r){return r.v>0;}).map(function(r){
+                  return e('tr',{key:r.l,style:{borderBottom:'1px solid '+C.border+'15'}},
+                    e(TD,{color:r.c},r.l),e(TD,{color:r.c,mono:true},fmtF(r.v)),
+                    e('td',{style:{padding:'5px 10px'}},e('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:3,background:C.bear+'18',color:C.bear,fontWeight:600}},'ORDINARY'))
+                  );
+                }),
+                e('tr',{key:'qd',style:{borderBottom:'1px solid '+C.border+'15'}},
+                  e(TD,{color:C.gold},'Qualified Dividends (~85%)'),e(TD,{color:C.gold,mono:true},fmtF(qualDiv)),
+                  e('td',{style:{padding:'5px 10px'}},e('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:3,background:C.bull+'18',color:C.bull,fontWeight:600}},'LTCG RATE'))
+                ),
+                e('tr',{key:'muni',style:{borderBottom:'1px solid '+C.border+'15'}},
+                  e(TD,{color:C.inc3},'Muni Bond Interest'),e(TD,{color:C.inc3,mono:true},fmtF(CUR.muniInc)),
+                  e('td',{style:{padding:'5px 10px'}},e('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:3,background:C.inc3+'18',color:C.inc3,fontWeight:600}},'EXEMPT'))
+                ),
+                e('tr',{key:'tot',style:{borderTop:'2px solid '+C.border}},
+                  e('td',{style:{padding:'6px 10px',fontWeight:700,color:C.text}},'Total Gross Income'),
+                  e(TD,{color:C.text,mono:true},e('strong',null,fmtF(AGI+CUR.muniInc))),
+                  e('td',{style:{padding:'5px 10px',fontSize:11,color:C.muted}},'AGI: '+fmtF(AGI))
+                )
+              )
+            )
+          ),
+          e(Card,null,
+            e(SH,{n:'02',title:'Federal Tax Detail'}),
+            [{l:'Ordinary Income',v:totalOrd},{l:'Less Deduction ('+(TAX.filing==='mfj'?'MFJ':'Single')+')',v:-ded},{l:'Taxable Ordinary',v:taxableOrd,strong:true},{l:'Tax on Ordinary Income',v:fedOrd,c:C.bear},{l:'Tax on Qual. Dividends (LTCG)',v:fedLtcg,c:C.bear},{l:'Net Investment Income Tax (3.8%)',v:niit,c:niit>0?C.bear:C.muted},{l:'Total Federal',v:fedTotal,c:C.bear,strong:true,sep:true}].map(function(it){
+              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:it.sep?'2px solid '+C.border:'none',borderBottom:it.sep?'none':'1px solid '+C.border+'10',fontSize:12}},
+                e('span',{style:{color:C.muted}},it.l),
+                e('span',{style:{color:it.c||(it.v<0?C.bull:C.text),fontFamily:'monospace',fontWeight:it.strong?800:600}},it.v<0?'-'+fmtF(-it.v):fmtF(it.v))
+              );
+            }),
+            niit>0&&e('div',{style:{marginTop:8,padding:'8px 10px',background:'rgba(224,92,92,0.07)',borderRadius:6,fontSize:11,color:C.muted}},'NIIT: AGI ',e('strong',{style:{color:C.text}},fmtF(AGI)),' > $'+Math.round(niitThresh/1e3)+'K threshold · ',e('strong',{style:{color:C.bear}},fmtF(niit)),' on ',fmtF(Math.min(investInc,AGI-niitThresh)),' of investment income'),
+            e(SH,{n:'03',title:'State: '+(TAX.state==='ct'?'Connecticut':'New Hampshire'),sub:TAX.state==='ct'?'Graduated 3–6.99%':'No state income tax'}),
+            TAX.state==='ct'
+              ?[{l:'CT Taxable Income',v:ctStateInc},{l:'CT Income Tax',v:ctStateAmt,c:C.re1,strong:true},{l:'CT Property Tax (est.)',v:TAX.propTaxCT,c:C.re1},{l:'Total CT Tax Burden',v:ctStateAmt+TAX.propTaxCT,c:C.re1,strong:true,sep:true}].map(function(it){
+                  return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:it.sep?'2px solid '+C.border:'none',borderBottom:it.sep?'none':'1px solid '+C.border+'10',fontSize:12}},
+                    e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:it.c||C.text,fontFamily:'monospace',fontWeight:it.strong?800:600}},fmtF(it.v))
+                  );
+                })
+              :e('div',null,
+                  e('div',{style:{padding:'12px',background:'rgba(62,201,126,0.07)',borderRadius:8,border:'1px solid '+C.bull+'30',marginBottom:8}},
+                    e('div',{style:{fontSize:14,fontWeight:800,color:C.bull}},'$0 State Income Tax'),
+                    e('div',{style:{fontSize:11,color:C.muted,marginTop:3}},'NH eliminated Interest & Dividends tax Jan 1, 2025. Dividends, interest, SS, and pension all tax-free at state level.')
+                  ),
+                  e('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0'}},
+                    e('span',{style:{color:C.muted}},'NH Property Tax (Silver Lake est.)'),
+                    e('span',{style:{color:C.re2,fontFamily:'monospace',fontWeight:700}},fmtF(TAX.propTaxNH)+'/yr')
+                  )
+                )
+          )
+        ),
+        e(SH,{n:'04',title:'CT vs NH — Annual Financial Impact'}),
+        e(Card,{style:{marginBottom:14}},
+          e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
+            [{l:'CT State Income Tax',v:ctStateAmt,c:C.re1,s:'Annual burden'},{l:'NH State Income Tax',v:0,c:C.bull,s:'Eliminated 2025'},{l:'Income Tax Savings (NH)',v:ctStateAmt,c:C.bull,s:'Moving CT → NH'},{l:'Net Annual Benefit',v:netAnnCTvsNH,c:netAnnCTvsNH>0?C.bull:C.bear,s:netAnnCTvsNH>0?'NH saves money overall':'CT saves (lower prop tax)'}].map(function(it){return e(Card,{key:it.l,style:{padding:'10px 12px',borderTop:'2px solid '+it.c}},e('div',{style:{fontSize:10,color:C.muted,marginBottom:3}},it.l),e('div',{style:{fontSize:16,fontWeight:800,fontFamily:'monospace',color:it.c}},fmtF(it.v)),e('div',{style:{fontSize:10,color:C.muted,marginTop:2}},it.s));})),
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:12}},
+            e('thead',null,e('tr',null,[e(TH,{key:'c'},'Category'),e(TH,{key:'ct'},'Connecticut'),e(TH,{key:'nh'},'New Hampshire'),e(TH,{key:'d'},'Difference')])),
+            e('tbody',null,[
+              {cat:'State Income Tax',ct:ctStateAmt,nh:0,flip:false},
+              {cat:'Property Tax (est.)',ct:TAX.propTaxCT,nh:TAX.propTaxNH,flip:true},
+              {cat:'Estate Tax',ct:0,nh:0,note:'Both $0 — estate below CT $12.9M threshold'},
+              {cat:'Total Annual State Costs',ct:ctStateAmt+TAX.propTaxCT,nh:TAX.propTaxNH,flip:false,strong:true},
+            ].map(function(r){
+              var diff=r.note?null:(r.flip?r.ct-r.nh:r.nh-r.ct);
+              var nhBetter=diff!==null&&diff>0;
+              return e('tr',{key:r.cat,style:{borderBottom:'1px solid '+C.border+'15',fontWeight:r.strong?700:400}},
+                e(TD,{color:r.strong?C.gold:C.muted},r.cat),
+                e(TD,{color:C.re1,mono:true},fmtF(r.ct)),
+                e(TD,{color:C.bull,mono:true},r.note?'—':fmtF(r.nh)),
+                r.note?e(TD,{color:C.muted},r.note):e(TD,{color:nhBetter?C.bull:C.bear,mono:true},(nhBetter?'NH saves ':'CT saves ')+fmtF(Math.abs(diff))+'/yr')
+              );
+            }))
+          ),
+          e('div',{style:{display:'flex',gap:20,alignItems:'center',flexWrap:'wrap',fontSize:12}},
+            e('span',{style:{color:C.muted}},'CT Property Tax: $'),
+            e('input',{type:'number',value:TAX.propTaxCT,min:0,step:500,onChange:function(ev){setTAX(Object.assign({},TAX,{propTaxCT:parseInt(ev.target.value)||0}));},style:{width:90,background:'rgba(255,255,255,0.05)',border:'1px solid '+C.border,borderRadius:4,padding:'4px 7px',fontSize:12,color:C.re1,outline:'none',fontFamily:'monospace'}}),
+            e('span',{style:{color:C.muted,marginLeft:8}},'NH Property Tax: $'),
+            e('input',{type:'number',value:TAX.propTaxNH,min:0,step:500,onChange:function(ev){setTAX(Object.assign({},TAX,{propTaxNH:parseInt(ev.target.value)||0}));},style:{width:90,background:'rgba(255,255,255,0.05)',border:'1px solid '+C.border,borderRadius:4,padding:'4px 7px',fontSize:12,color:C.re2,outline:'none',fontFamily:'monospace'}}),
+            e('span',{style:{color:C.muted,fontSize:11}},'· Update to match actual assessments')
+          )
+        ),
+        e(SH,{n:'05',title:'Rebalancing Strategy — Capital Gains Tax Cost',sub:'Federal 23.8% (20%+NIIT) '+(TAX.state==='ct'?'+ CT ~6.5%':'+ NH $0')}),
+        e(Card,null,
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:10}},
+            e('thead',null,e('tr',null,[e(TH,{key:'s'},'Strategy'),e(TH,{key:'g'},'Gains Realized'),e(TH,{key:'f'},'Federal Tax'),e(TH,{key:'st'},'State Tax'),e(TH,{key:'t'},'Total Tax'),e(TH,{key:'n'},'Net Cost (after S1 credits)')])),
+            e('tbody',null,[
+              {s:'S1 — Harvest Losses Only',gains:0,fed:0,state:0},
+              {s:'S2 — Trim 4 Positions',gains:180089,fed:S2_TAX,state:Math.round(180089*(TAX.state==='ct'?.065:0))},
+              {s:'S3 — Full Optimization',gains:238536,fed:S3_TAX,state:Math.round(238536*(TAX.state==='ct'?.065:0))},
+            ].map(function(r){
+              var total=r.fed+r.state;
+              var net=total-S1_SAV;
+              return e('tr',{key:r.s,style:{borderBottom:'1px solid '+C.border+'15'}},
+                e(TD,{color:C.gold},r.s),
+                e(TD,{mono:true},r.gains>0?fmtF(r.gains):'—'),
+                e(TD,{color:r.fed>0?C.bear:C.muted,mono:true},r.fed>0?fmtF(r.fed):'$0'),
+                e(TD,{color:r.state>0?C.re1:C.bull,mono:true},r.state>0?fmtF(r.state):'$0'),
+                e(TD,{color:r.fed>0?C.bear:C.muted,mono:true},r.fed>0?fmtF(total):'$0'),
+                e(TD,{color:net<=0?C.bull:C.bear,mono:true},net<=0?'+'+fmtF(-net)+' net savings':fmtF(net)+' net cost')
+              );
+            }))
+          ),
+          e('div',{style:{fontSize:11,color:C.muted,borderTop:'1px solid '+C.border,paddingTop:8}},
+            'S1 harvest banks ',e('strong',{style:{color:C.bull}},fmtF(S1_SAV)),' in loss credits that offset S2/S3 gain taxes. ',
+            TAX.state==='ct'
+              ?e('span',null,'CT adds ~6.5% state capital gains tax — ',e('strong',{style:{color:C.re1}},'additional '+fmtF(Math.round(238536*.065))+' on S3'),'.')
+              :e('span',{style:{color:C.bull}},'NH advantage: zero state capital gains tax saves '+fmtF(Math.round(238536*.065))+' on S3 vs CT.'),
+            e('div',{style:{marginTop:6,padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:6}},'Disclaimer: estimates only. Tax rates use 2025 brackets. Consult a CPA before executing rebalancing trades.')
+          )
+        )
+      );
+    })(),
 
     tab==='overview'&&e('div',null,
       e(SH,{n:'01',title:'Total Estate Value'}),
