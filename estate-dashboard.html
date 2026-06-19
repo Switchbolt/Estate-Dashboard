@@ -760,7 +760,9 @@ async function fetchStooq(sym) {
 }
 
 async function fetchYahoo(sym) {
+  // Try Vercel serverless proxy first (avoids CORS), then fall back to direct
   var endpoints = [
+    '/api/quote?sym=' + sym,
     'https://query1.finance.yahoo.com/v8/finance/chart/' + sym + '?interval=1d&range=1d',
     'https://query2.finance.yahoo.com/v8/finance/chart/' + sym + '?interval=1d&range=1d',
   ];
@@ -773,7 +775,7 @@ async function fetchYahoo(sym) {
       if (!meta || !meta.regularMarketPrice) continue;
       var prev = meta.chartPreviousClose || meta.previousClose || meta.regularMarketPrice;
       var price = meta.regularMarketPrice;
-      return { price, change: price - prev, changePct: prev > 0 ? (price - prev) / prev * 100 : 0 };
+      return { price: price, change: price - prev, changePct: prev > 0 ? (price - prev) / prev * 100 : 0 };
     } catch(e) {}
   }
   return null;
@@ -1212,26 +1214,115 @@ var DGR_TOP=DIVIDENDS.slice().sort(function(a,b){return b.annual-a.annual;}).sli
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 function App(){
-  var _s=useState('income'),tab=_s[0],setTab=_s[1];
+  var _s=useState('home'),tab=_s[0],setTab=_s[1];
   var _s2=useState(6),atheneStart=_s2[0],setAS=_s2[1];
   var _s3=useState(false),showNH=_s3[0],setShowNH=_s3[1];
   var _sSS=useState({monthly:2800,startAge:67}),SS=_sSS[0],setSS=_sSS[1];
   var _sCL=useState({trust:true,pour:false,poa:false,hcd:false,ben:false,will:false,inv:false,deed:false}),CL=_sCL[0],setCL=_sCL[1];
   var AINC=genIncomeData(atheneStart,showNH);
   var atheneLabel=atheneStart===0?'Now (2026)':atheneStart===6?'2032 (surrender end)':atheneStart===10?'2036':'2041';
-  var tabs=[{k:'dividends',l:'💰 Dividends'},{k:'live',l:'🔴 Live'},{k:'income',l:'📈 Income'},{k:'overview',l:'Overview'},{k:'annuities',l:'Annuities'},{k:'projection',l:'Projection'},{k:'s1',l:'Strategy 1'},{k:'s2',l:'Strategy 2'},{k:'s3',l:'Strategy 3'},{k:'compare',l:'Compare All'},{k:'montecarlo',l:'🎲 Monte Carlo'},{k:'ssclaim',l:'🏛 SS Strategy'},{k:'diy',l:'⚖ Annuity vs DIY'},{k:'concentration',l:'⚠ Concentration'},{k:'sorisk',l:'📉 Seq. Risk'},{k:'dgr',l:'🌱 DGR Tracker'},{k:'liquidity',l:'💧 Liquidity'},{k:'readiness',l:'✅ Readiness'}];
+  var TABS_MAIN=[{k:'home',l:'🏠 Home'},{k:'dividends',l:'💰 Dividend Calendar'},{k:'live',l:'📊 Live Prices'},{k:'income',l:'💵 Income Plan'},{k:'annuities',l:'📋 Annuities'},{k:'readiness',l:'✅ Estate Checklist'}];
+  var TABS_PLAN=[{k:'projection',l:'25-yr View'},{k:'overview',l:'Portfolio'},{k:'s1',l:'Rebalance A'},{k:'s2',l:'Rebalance B'},{k:'s3',l:'Rebalance C'},{k:'compare',l:'Compare'}];
+  var TABS_ANALYSIS=[{k:'montecarlo',l:'🎲 Monte Carlo'},{k:'ssclaim',l:'🏛 SS Strategy'},{k:'diy',l:'⚖ Annuity vs DIY'},{k:'concentration',l:'⚠ Concentration'},{k:'sorisk',l:'📉 Seq. Risk'},{k:'dgr',l:'🌱 DGR Tracker'},{k:'liquidity',l:'💧 Liquidity'}];
+  var tabs=TABS_MAIN.concat(TABS_PLAN).concat(TABS_ANALYSIS);
   var e=React.createElement;
-  function tabBtn(k,l){return e('button',{key:k,onClick:function(){setTab(k);},style:{padding:'8px 14px',fontSize:11,fontWeight:tab===k?700:500,letterSpacing:'0.04em',textTransform:'uppercase',cursor:'pointer',borderRadius:6,border:'1px solid '+(tab===k?C.gold:C.border),background:tab===k?C.gold:'transparent',color:tab===k?'#080d18':C.silver}},l);}
+  function tabBtn(k,l,big){return e('button',{key:k,onClick:function(){setTab(k);},style:{padding:big?'9px 16px':'7px 12px',fontSize:big?12:11,fontWeight:tab===k?700:500,letterSpacing:'0.03em',cursor:'pointer',borderRadius:6,border:'1px solid '+(tab===k?C.gold:C.border),background:tab===k?C.gold:'transparent',color:tab===k?'#080d18':tab===k?C.gold:C.silver,whiteSpace:'nowrap'}},l);}
 
   return e('div',{style:{background:C.bg,minHeight:'100vh',fontFamily:"'Helvetica Neue',Arial,sans-serif",color:C.text,padding:'22px 18px',boxSizing:'border-box'}},
-    e('div',{style:{marginBottom:20,borderBottom:'1px solid '+C.border,paddingBottom:18}},
-      e('h1',{style:{margin:0,fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'#f0f6ff'}},
-        'Living Trust — Total Estate Projection',
-        e(Badge,{key:'b1'},'FEB 2026'),e(Badge,{key:'b2',color:C.s3},'RE'),e(Badge,{key:'b3',color:C.an1},'ANNUITIES'),e(Badge,{key:'b4',color:C.inc1},'INCOME')
+    e('div',{style:{marginBottom:16,borderBottom:'1px solid '+C.border,paddingBottom:16}},
+      e('h1',{style:{margin:0,fontSize:22,fontWeight:800,letterSpacing:'-0.02em',color:'#f0f6ff'}},
+        'Family Estate Dashboard'
       ),
-      e('p',{style:{margin:'5px 0 0',color:C.muted,fontSize:12}},'Investment · 3685 Hebron Ave CT · 82 Alexander Ave NH · SB Strategic Growth Plus · Athene Agility 10')
+      e('p',{style:{margin:'4px 0 0',color:C.muted,fontSize:13}},'Investment Portfolio · Glastonbury CT · Silver Lake NH · SB Strategic Growth+ · Athene Agility 10')
     ),
-    e('div',{style:{display:'flex',gap:6,marginBottom:22,flexWrap:'wrap'}},tabs.map(function(t){return tabBtn(t.k,t.l);})),
+    e('div',{style:{marginBottom:20}},
+      e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:5}},'Main'),
+      e('div',{style:{display:'flex',gap:5,marginBottom:10,flexWrap:'wrap'}},TABS_MAIN.map(function(t){return tabBtn(t.k,t.l,true);})),
+      e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:5}},'Planning & Strategy'),
+      e('div',{style:{display:'flex',gap:5,marginBottom:10,flexWrap:'wrap'}},TABS_PLAN.map(function(t){return tabBtn(t.k,t.l,false);})),
+      e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:5}},'Advanced Analysis'),
+      e('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},TABS_ANALYSIS.map(function(t){return tabBtn(t.k,t.l,false);}))
+    ),
+
+    tab==='home'&&(function(){
+      var now=new Date();
+      var MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+      var cm=now.getMonth()+1,cy=now.getFullYear();
+      var nm=cm===12?1:cm+1,ny=nm===1?cy+1:cy;
+      var thisMo=DIVIDENDS.filter(function(d){return d.months.indexOf(cm)>=0;}).sort(function(a,b){return b.perPay-a.perPay;});
+      var nextMo=DIVIDENDS.filter(function(d){return d.months.indexOf(nm)>=0;}).sort(function(a,b){return b.perPay-a.perPay;});
+      var thisMoTotal=thisMo.reduce(function(s,d){return s+d.perPay;},0);
+      var nextMoTotal=nextMo.reduce(function(s,d){return s+d.perPay;},0);
+      var ESTATE_TOTAL=INVEST+RE_CT+RE_NH+SB_CURRENT_AV+ATH_CURRENT_AV;
+      var ANN_INCOME=DIV_ANNUAL_TOTAL+Math.round(MUNI_FACE*MUNI_COUPON)+FUND_INCOME;
+      var ATH_INC_2032=Math.round(ATH_CURRENT_BB*Math.pow(1.07,6)*0.06);
+      var actions=[
+        {pri:'DECIDE',when:'Before 2032',c:C.an2,what:'Choose when to start Athene guaranteed income',how:'Call Athene at 1-800-894-2166 when you\'re ready — surrender ends June 2032. Starting then = '+fmt(ATH_INC_2032)+'/yr for life.',why:'Waiting until 2032 is optimal — benefit base grows 7%/yr through 2032'},
+        {pri:'TAX',when:'Before Dec 31',c:C.gold,what:'Harvest investment losses to cut your tax bill',how:'Sell TLRY (loss: $23K), FIS ($14K), APA ($10K), CMP ($9K). Your advisor can do this with one call.',why:'Saves ~'+fmtF(Math.round(57263*0.238))+' in capital gains taxes · pairs with gains from VST/NVDA trims'},
+        {pri:'AVAIL',when:'Any Time',c:C.bull,what:'SB Strategic Growth+ free withdrawal',how:'Call Corebridge Financial — you can take up to '+fmt(Math.round(SB_CURRENT_AV*0.1))+'/yr penalty-free.',why:'10% of account value available annually with no surrender charge · account value decreases'},
+        {pri:'DECIDE',when:'Before 2032',c:C.s3,what:'Lock in your Social Security start date',how:'Go to ssa.gov or call 1-800-772-1213. Starting at 67 = $2,800/mo · at 70 = $3,472/mo for life.',why:'Every year you wait past 67 adds 8% more — breakeven at 70 vs 67 happens around age 82'},
+        {pri:'ESTATE',when:'This Year',c:C.re2,what:'Finish estate planning documents',how:'Ask your attorney for: pour-over will, durable POA, healthcare directive. Verify IRA beneficiaries.',why:'Living trust is in place — supporting docs protect it from court delays'},
+      ];
+      function DivRow(d,dim){
+        return e('div',{key:d.sym,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid '+C.border+'18'}},
+          e('div',null,
+            e('span',{style:{fontWeight:700,color:C.gold,marginRight:10,fontSize:14}},d.sym),
+            e('span',{style:{fontSize:13,color:C.muted}},d.note)
+          ),
+          e('span',{style:{fontFamily:'monospace',fontWeight:700,fontSize:14,color:dim?C.muted:C.text}},fmtF(Math.round(d.perPay)))
+        );
+      }
+      return e('div',null,
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:14,marginBottom:22}},
+          [
+            {l:'Total Estate Value',v:fmt(ESTATE_TOTAL),s:'All assets combined',c:C.gold},
+            {l:'Annual Income (no selling)',v:fmt(ANN_INCOME)+'/yr',s:'Dividends + munis + funds',c:C.inc1},
+            {l:MN[cm-1]+' Dividends',v:fmtF(Math.round(thisMoTotal)),s:thisMo.length+' payments this month',c:C.bull},
+            {l:'Athene Guaranteed (2032)',v:fmt(ATH_INC_2032)+'/yr',s:'For life · available Jun 2032',c:C.an2}
+          ].map(function(it){
+            return e(Card,{key:it.l,style:{borderTop:'3px solid '+it.c,padding:'18px 20px'}},
+              e('div',{style:{fontSize:12,color:C.muted,marginBottom:7,textTransform:'uppercase',letterSpacing:'0.06em'}},it.l),
+              e('div',{style:{fontSize:26,fontWeight:800,fontFamily:'monospace',color:it.c,marginBottom:4}},it.v),
+              e('div',{style:{fontSize:13,color:C.muted}},it.s)
+            );
+          })
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:22}},
+          e(Card,null,
+            e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14}},
+              e('span',{style:{fontSize:15,fontWeight:700,color:C.text}},'💰 '+MN[cm-1]+' '+cy+' Dividends'),
+              e('span',{style:{fontSize:18,fontWeight:800,fontFamily:'monospace',color:C.bull}},fmtF(Math.round(thisMoTotal)))
+            ),
+            e('div',{style:{maxHeight:340,overflowY:'auto'}},
+              thisMo.length>0?thisMo.map(function(d){return DivRow(d,false);}):e('div',{style:{color:C.muted,fontSize:13,padding:'16px 0',textAlign:'center'}},'No dividends scheduled this month')
+            )
+          ),
+          e(Card,null,
+            e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14}},
+              e('span',{style:{fontSize:15,fontWeight:700,color:C.muted}},'📅 Coming Up — '+MN[nm-1]+' '+ny),
+              e('span',{style:{fontSize:18,fontWeight:800,fontFamily:'monospace',color:C.muted}},fmtF(Math.round(nextMoTotal)))
+            ),
+            e('div',{style:{maxHeight:340,overflowY:'auto'}},nextMo.map(function(d){return DivRow(d,true);}))
+          )
+        ),
+        e('div',{style:{fontSize:16,fontWeight:700,color:C.text,marginBottom:12}},'✅ Action Items — What To Do & When'),
+        e(Card,null,
+          actions.map(function(a,i){
+            return e('div',{key:i,style:{display:'flex',gap:18,padding:'16px 0',borderBottom:i<actions.length-1?'1px solid '+C.border+'20':'none'}},
+              e('div',{style:{flexShrink:0,width:76}},
+                e('div',{style:{fontSize:10,color:a.c,fontWeight:800,textTransform:'uppercase',border:'1px solid '+a.c+'50',borderRadius:5,padding:'3px 6px',textAlign:'center',marginBottom:5}},a.pri),
+                e('div',{style:{fontSize:11,color:C.muted,textAlign:'center',lineHeight:1.4}},a.when)
+              ),
+              e('div',null,
+                e('div',{style:{fontSize:15,fontWeight:700,color:C.text,marginBottom:5}},a.what),
+                e('div',{style:{fontSize:13,color:C.silver,marginBottom:5,lineHeight:1.5}},'How: ',a.how),
+                e('div',{style:{fontSize:12,color:C.muted,lineHeight:1.5}},'Why it matters: ',a.why)
+              )
+            );
+          })
+        )
+      );
+    })(),
 
     tab==='dividends'&&e(DividendTab,null),
     tab==='live'&&e(LiveTab,null),
