@@ -551,9 +551,14 @@ function DividendTab() {
     if (!byFreq[d.freq]) byFreq[d.freq] = 0;
     byFreq[d.freq] += d.annual;
   });
-  var curMonthIdx = 3;
+  var now = new Date();
+  var curMonthIdx = now.getMonth();
+  var curYear = now.getFullYear();
   var ytdActual = DIV_MONTH_TOTALS.slice(0, curMonthIdx+1).reduce(function(s,v){return s+v;},0);
   var remainingYr = DIV_MONTH_TOTALS.slice(curMonthIdx+1).reduce(function(s,v){return s+v;},0);
+  var ytdLabel = 'Jan–'+MSHORT[curMonthIdx];
+  var remLabel = MSHORT[curMonthIdx+1]||'—';
+  var remMonths = 12 - (curMonthIdx+1);
 
   return e('div', null,
     e('div', {style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:18}},
@@ -564,9 +569,9 @@ function DividendTab() {
       e(Card,{style:{borderTop:'2px solid '+C.inc3}},
         e(Stat,{label:'Best Month (Mar/Jun/Sep/Dec)',value:fmtD(maxMonth),sub:'Q3 payers dominate March-cycle months',accent:C.inc3})),
       e(Card,{style:{borderTop:'2px solid '+C.s2}},
-        e(Stat,{label:'YTD Received (Jan–Apr)',value:fmtD(ytdActual),sub:'Through April 2026',accent:C.s2})),
+        e(Stat,{label:'YTD Received ('+ytdLabel+')',value:fmtD(ytdActual),sub:'Through '+MNAMES[curMonthIdx]+' '+curYear,accent:C.s2})),
       e(Card,{style:{borderTop:'2px solid '+C.re1}},
-        e(Stat,{label:'Remaining 2026 (May–Dec)',value:fmtD(remainingYr),sub:'8 months remaining',accent:C.re1}))
+        e(Stat,{label:'Remaining '+curYear+' ('+remLabel+'–Dec)',value:fmtD(remainingYr),sub:remMonths+' months remaining',accent:C.re1}))
     ),
     e(Card,{style:{marginBottom:16,padding:'12px 18px'}},
       e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}},'Income by Payment Frequency'),
