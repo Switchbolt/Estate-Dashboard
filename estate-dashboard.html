@@ -227,16 +227,6 @@ var DIVIDENDS=[
 var MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 var DIV_MONTH_TOTALS=[3894.99, 5248.94, 11975.8, 4793.85, 5079.07, 10750.78, 4047.0, 3814.32, 11975.8, 3894.99, 3814.32, 10750.78];
 var DIV_ANNUAL_TOTAL=80040.7;
-// Dividend income impact per rebalance strategy
-var S1_DIV_LOST=DIVIDENDS.filter(function(d){return LOSSES.some(function(l){return l.sym===d.sym;});}).reduce(function(s,d){return s+d.annual;},0);
-var S1_DIV_REINVEST=Math.round(LOSSES.reduce(function(s,l){return s+l.mv;},0)*0.022);
-var S1_DIV_DELTA=S1_DIV_REINVEST-Math.round(S1_DIV_LOST);
-var S2_TRIM_DIV_LOST=TRIM.reduce(function(s,t){var d=DIVIDENDS.find(function(x){return x.sym===t.sym;});if(!d)return s;return s+d.annual*Math.max(0,(t.mv-INVEST*0.025)/t.mv);},0);
-var S2_TRIM_REINVEST=Math.round(TRIM.reduce(function(s,t){return s+Math.max(0,t.mv-INVEST*0.025);},0)*0.028);
-var S2_DIV_DELTA=Math.round(S1_DIV_DELTA+S2_TRIM_REINVEST-S2_TRIM_DIV_LOST);
-var S3_FRATED_DIV_LOST=FRATED.reduce(function(s,f){var d=DIVIDENDS.find(function(x){return x.sym===f.sym;});if(!d)return s;return s+d.annual;},0);
-var S3_FRATED_REINVEST=Math.round(FRATED.reduce(function(s,f){return s+f.mv;},0)*0.028);
-var S3_DIV_DELTA=Math.round(S2_DIV_DELTA+S3_FRATED_REINVEST-S3_FRATED_DIV_LOST);
 // Social Security & Pension income (actual current values)
 var SS_MONTHLY=2485,SS_ANNUAL=SS_MONTHLY*12;
 var PEN_MONTHLY=3214,PEN_ANNUAL=PEN_MONTHLY*12;
@@ -1126,6 +1116,16 @@ var xFmtYr=function(v){return v%5===1||v===2026?String(v):'';};
 var LOSSES=[{sym:"TLRY",name:"Tilray Brands",mv:2986,cb:26842,loss:-23856},{sym:"FIS",name:"Fidelity Natl Info",mv:7217,cb:21902,loss:-14685},{sym:"APA",name:"APA Corp",mv:4293,cb:15092,loss:-10799},{sym:"CMP",name:"Compass Minerals",mv:3518,cb:13241,loss:-9723},{sym:"BHC",name:"Bausch Health",mv:4756,cb:13028,loss:-8272},{sym:"KW",name:"Kennedy-Wilson",mv:12207,cb:15895,loss:-3688},{sym:"VFC",name:"VF Corp",mv:6702,cb:9632,loss:-2930},{sym:"ABEV",name:"Ambev ADR",mv:3682,cb:6032,loss:-2350},{sym:"PFE",name:"Pfizer",mv:2198,cb:4153,loss:-1955},{sym:"TEVA",name:"Teva Pharma",mv:13873,cb:15076,loss:-1202}];
 var TRIM=[{sym:"VST",name:"Vistra Corp",mv:205944,gain:190011,pct:4.2},{sym:"NVDA",name:"Nvidia",mv:190922,gain:187592,pct:3.9},{sym:"AVGO",name:"Broadcom",mv:146470,gain:127683,pct:3.0},{sym:"NEE",name:"NextEra Energy",mv:141606,gain:112715,pct:2.9}];
 var FRATED=[{sym:"HBAN",name:"Huntington Bancshares",mv:28304,gain:14681},{sym:"BA",name:"Boeing",mv:24273,gain:17524},{sym:"AMD",name:"Adv Micro Devices",mv:26730,gain:6820},{sym:"IP",name:"International Paper",mv:22230,gain:11032},{sym:"KMB",name:"Kimberly-Clark",mv:21666,gain:8390}];
+// Dividend income impact per rebalance strategy (computed here — depends on LOSSES/TRIM/FRATED above)
+var S1_DIV_LOST=DIVIDENDS.filter(function(d){return LOSSES.some(function(l){return l.sym===d.sym;});}).reduce(function(s,d){return s+d.annual;},0);
+var S1_DIV_REINVEST=Math.round(LOSSES.reduce(function(s,l){return s+l.mv;},0)*0.022);
+var S1_DIV_DELTA=S1_DIV_REINVEST-Math.round(S1_DIV_LOST);
+var S2_TRIM_DIV_LOST=TRIM.reduce(function(s,t){var d=DIVIDENDS.find(function(x){return x.sym===t.sym;});if(!d)return s;return s+d.annual*Math.max(0,(t.mv-INVEST*0.025)/t.mv);},0);
+var S2_TRIM_REINVEST=Math.round(TRIM.reduce(function(s,t){return s+Math.max(0,t.mv-INVEST*0.025);},0)*0.028);
+var S2_DIV_DELTA=Math.round(S1_DIV_DELTA+S2_TRIM_REINVEST-S2_TRIM_DIV_LOST);
+var S3_FRATED_DIV_LOST=FRATED.reduce(function(s,f){var d=DIVIDENDS.find(function(x){return x.sym===f.sym;});if(!d)return s;return s+d.annual;},0);
+var S3_FRATED_REINVEST=Math.round(FRATED.reduce(function(s,f){return s+f.mv;},0)*0.028);
+var S3_DIV_DELTA=Math.round(S2_DIV_DELTA+S3_FRATED_REINVEST-S3_FRATED_DIV_LOST);
 var TOP_DIVS=[{sym:"NEE",name:"NextEra Energy",mv:141606,divPct:2.7,ann:3823},{sym:"ABBV",name:"AbbVie",mv:91376,divPct:3.08,ann:2814},{sym:"EMR",name:"Emerson Electric",mv:168986,divPct:1.49,ann:2518},{sym:"XOM",name:"Exxon Mobil",mv:89556,divPct:2.8,ann:2508},{sym:"OKE",name:"ONEOK",mv:32078,divPct:4.9,ann:1572},{sym:"AFL",name:"Aflac",mv:67476,divPct:2.14,ann:1444},{sym:"KMB",name:"Kimberly-Clark",mv:21666,divPct:4.7,ann:1018},{sym:"GIS",name:"General Mills",mv:19213,divPct:5.47,ann:1052},{sym:"UPS",name:"United Parcel",mv:17882,divPct:5.62,ann:1005},{sym:"IP",name:"Intl Paper",mv:22230,divPct:3.95,ann:878}];
 // ─── Tiny UI helpers ──────────────────────────────────────────────────────────
 function Card(p){return React.createElement('div',{style:Object.assign({background:C.panel,border:'1px solid '+C.border,borderRadius:10,padding:'16px 18px'},p.style||{})},p.children);}
