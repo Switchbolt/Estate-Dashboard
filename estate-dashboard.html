@@ -1367,9 +1367,12 @@ function App(){
           )
         )
       ),
-      e(SH,{n:'01',title:'Current Annual Income (2026)',sub:'Portfolio only — Athene GLWB not yet activated'}),
-      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:16}},
-        [{l:'Equity Dividends',v:CUR.equityDiv,c:C.inc1,s:'~2.2% blended yield'},{l:'Muni Interest',v:CUR.muniInc,c:C.inc3,s:'Tax-free · $460K face'},{l:'Fund Distributions',v:CUR.fundInc,c:C.an1,s:'PDI+PHYTX+VFICX+VWEHX'},{l:'Cash / MM',v:CUR.cashInc,c:C.silver,s:'~4.5% MMF'},{l:'Portfolio Total',v:CUR_TOTAL,c:C.gold,s:'Before Athene income'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmt(it.v)+'/yr',sub:it.s,accent:it.c,sm:true}));})
+      e(SH,{n:'01',title:'Current Annual Income (2026)',sub:'All sources — portfolio + Social Security + pension'}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:12}},
+        [{l:'Social Security',v:SS_ANNUAL,c:C.bull,s:'$'+SS_MONTHLY.toLocaleString()+'/mo · COLA ~2.3%/yr'},{l:'Pension',v:PEN_ANNUAL,c:C.s2,s:'$'+PEN_MONTHLY.toLocaleString()+'/mo · fixed'},{l:'Equity Dividends',v:CUR.equityDiv,c:C.inc1,s:'~2.2% blended yield'},{l:'Muni Interest',v:CUR.muniInc,c:C.inc3,s:'Tax-free · $460K face'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmt(it.v)+'/yr',sub:it.s,accent:it.c,sm:true}));})
+      ),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:16}},
+        [{l:'Fund Distributions',v:CUR.fundInc,c:C.an1,s:'PDI+PHYTX+VFICX+VWEHX'},{l:'Cash / MM',v:CUR.cashInc,c:C.silver,s:'~4.5% MMF'},{l:'Portfolio Sub-Total',v:CUR_TOTAL,c:C.gold,s:'Investments only'},{l:'Total All Sources',v:CUR_TOTAL+SS_ANNUAL+PEN_ANNUAL,c:C.s3,s:'SS + Pension + Portfolio'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmt(it.v)+'/yr',sub:it.s,accent:it.c,sm:true}));})
       ),
       e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:18}},
         e(Card,{style:{borderTop:'2px solid '+C.an2}},
@@ -1393,29 +1396,30 @@ function App(){
           e('div',{style:{fontSize:11,color:C.muted}},'Net after ~28% mgmt · $3.5K–$7K/wk peak season')
         )
       ),
-      e(SH,{n:'02',title:'25-Year Income Projection',sub:'Athene: '+atheneLabel+' · NH Rental: '+(showNH?'ON':'OFF')}),
+      e(SH,{n:'02',title:'25-Year Income Projection',sub:'Athene: '+atheneLabel+' · NH Rental: '+(showNH?'ON':'OFF')+' · SS + Pension included'}),
       e(Card,{style:{marginBottom:18}},
-        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Stacked annual income. Gold vertical = surrender end 2032. Hover to inspect values.'),
-        e(Legend,{series:[{key:'equityDiv',name:'Equity Dividends',color:C.inc1},{key:'muniInc',name:'Muni Interest (tax-free)',color:C.inc3},{key:'fundInc',name:'Fund Distributions',color:C.an1},{key:'atheneInc',name:'Athene GLWB Income',color:C.an2},{key:'nhInc',name:'NH Rental Income',color:C.re2}]}),
-        e(StackedAreaChart,{data:AINC,xKey:'yr',xFmt:xFmtYr,H:320,refLineX:2032,refLineLabel:'Surrender ends',series:[{key:'equityDiv',name:'Equity Dividends',color:C.inc1},{key:'muniInc',name:'Muni Interest',color:C.inc3},{key:'fundInc',name:'Fund Distributions',color:C.an1},{key:'atheneInc',name:'Athene GLWB',color:C.an2},{key:'nhInc',name:'NH Rental',color:C.re2}]})
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Stacked annual income including SS (COLA 2.3%/yr) and pension (fixed). Gold line = 2032 surrender end.'),
+        e(Legend,{series:[{key:'ssInc',name:'Social Security',color:C.bull},{key:'penInc',name:'Pension',color:C.s2},{key:'equityDiv',name:'Equity Dividends',color:C.inc1},{key:'muniInc',name:'Muni Interest',color:C.inc3},{key:'fundInc',name:'Fund Distributions',color:C.an1},{key:'atheneInc',name:'Athene GLWB',color:C.an2},{key:'nhInc',name:'NH Rental',color:C.re2}]}),
+        e(StackedAreaChart,{data:AINC.map(function(d,y){return Object.assign({},d,{ssInc:Math.round(SS_ANNUAL*Math.pow(1.023,y)),penInc:PEN_ANNUAL,total:d.total+Math.round(SS_ANNUAL*Math.pow(1.023,y))+PEN_ANNUAL});}),xKey:'yr',xFmt:xFmtYr,H:340,refLineX:2032,refLineLabel:'Surrender ends',series:[{key:'ssInc',name:'Social Security',color:C.bull},{key:'penInc',name:'Pension',color:C.s2},{key:'equityDiv',name:'Equity Dividends',color:C.inc1},{key:'muniInc',name:'Muni Interest',color:C.inc3},{key:'fundInc',name:'Fund Distributions',color:C.an1},{key:'atheneInc',name:'Athene GLWB',color:C.an2},{key:'nhInc',name:'NH Rental',color:C.re2}]})
       ),
-      e(SH,{n:'03',title:'Income Scenario Comparison at Key Years'}),
+      e(SH,{n:'03',title:'Income Scenario Comparison at Key Years',sub:'All figures include SS + Pension'}),
       e(Card,{style:{marginBottom:18}},
         e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
-          e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'po'},'Portfolio Only'),e(TH,{key:'an'},'+ Athene Now'),e(TH,{key:'a32'},'+ Athene 2032 ★'),e(TH,{key:'a36'},'+ Athene 2036'),e(TH,{key:'a41'},'+ Athene 2041')])),
+          e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'ss'},'SS + Pension'),e(TH,{key:'po'},'+ Portfolio'),e(TH,{key:'tot'},'Total (no Athene)'),e(TH,{key:'a32'},'Total + Athene 2032 ★'),e(TH,{key:'a32nh'},'+ NH Rental')])),
           e('tbody',null,[0,6,10,15,20,25].map(function(y){
             var isSurr=y===6;
+            var sspen=Math.round(SS_ANNUAL*Math.pow(1.023,y))+PEN_ANNUAL;
             return e('tr',{key:y,style:{borderBottom:'1px solid '+C.border+'15',background:isSurr?'rgba(201,168,76,0.05)':'transparent'}},
               e('td',{style:{padding:'7px 10px',color:isSurr?C.gold:C.text,fontWeight:isSurr?700:400}},(2026+y)+(isSurr?' ★':'')),
-              e(TD,{color:C.muted,mono:true},fmt(INC_PORT_ONLY[y].total)),
-              e(TD,{color:C.s2,mono:true},fmt(INC_NOW[y].total)),
-              e(TD,{color:C.an2,mono:true},e('strong',null,fmt(INC_2032[y].total))),
-              e(TD,{color:C.an1,mono:true},fmt(INC_2036[y].total)),
-              e(TD,{color:C.bull,mono:true},fmt(INC_2041[y].total))
+              e(TD,{color:C.bull,mono:true},fmt(sspen)),
+              e(TD,{color:C.inc1,mono:true},fmt(INC_PORT_ONLY[y].total)),
+              e(TD,{color:C.muted,mono:true},fmt(sspen+INC_PORT_ONLY[y].total)),
+              e(TD,{color:C.an2,mono:true},e('strong',null,fmt(sspen+INC_2032[y].total))),
+              e(TD,{color:C.s3,mono:true},fmt(sspen+INC_2032_NH[y].total))
             );
           }))
         ),
-        e('div',{style:{marginTop:8,fontSize:11,color:C.muted}},'★ 2032 recommended — surrender ends, benefit base grown to ~'+fmt(BB_2032)+', generating '+fmt(Math.round(BB_2032*0.06))+'/yr at 6.0% payout.')
+        e('div',{style:{marginTop:8,fontSize:11,color:C.muted}},'★ 2032: Athene surrender ends · benefit base ~'+fmt(BB_2032)+' → '+fmt(Math.round(BB_2032*0.06))+'/yr guaranteed for life.')
       ),
       e(SH,{n:'04',title:'Top Dividend Contributors'}),
       e(Card,{style:{marginBottom:18}},
@@ -1433,14 +1437,25 @@ function App(){
       ),
       e(SH,{n:'05',title:'Maximum Income Potential — All Sources (2051)'}),
       e(Card,null,
-        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:16}},
-          [{l:'Portfolio Income (2051)',v:INC_PORT_ONLY[25].total,c:C.inc1,s:'Dividends + funds + munis'},{l:'Athene GLWB (start 2032)',v:INC_2032[25].atheneInc,c:C.an2,s:'Guaranteed for life'},{l:'NH Rental (2051, 3%/yr)',v:Math.round(NH_RENTAL_NET*Math.pow(1.03,25)),c:C.re2,s:'Net after mgmt fees'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmt(it.v)+'/yr',sub:it.s,accent:it.c,sm:true}));})
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:16}},
+          [
+            {l:'Social Security (2051)',v:Math.round(SS_ANNUAL*Math.pow(1.023,25)),c:C.bull,s:'COLA 2.3%/yr from today'},
+            {l:'Pension (2051)',v:PEN_ANNUAL,c:C.s2,s:'Fixed · no COLA assumed'},
+            {l:'Portfolio Income (2051)',v:INC_PORT_ONLY[25].total,c:C.inc1,s:'Dividends + funds + munis'},
+            {l:'Athene GLWB (start 2032)',v:INC_2032[25].atheneInc,c:C.an2,s:'Guaranteed for life'},
+            {l:'NH Rental (2051)',v:Math.round(NH_RENTAL_NET*Math.pow(1.03,25)),c:C.re2,s:'Net after mgmt fees'}
+          ].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmt(it.v)+'/yr',sub:it.s,accent:it.c,sm:true}));})
         ),
-        e('div',{style:{textAlign:'center',padding:'14px',background:'rgba(56,189,248,0.08)',borderRadius:8,border:'1px solid rgba(56,189,248,0.2)'}},
-          e('div',{style:{fontSize:11,color:C.muted,marginBottom:6}},'Total Maximum Annual Income (2051) — Portfolio + Athene 2032 + NH Rental'),
-          e('div',{style:{fontSize:30,fontWeight:800,fontFamily:'monospace',color:C.s3}},fmt(INC_2032_NH[25].total)+'/yr'),
-          e('div',{style:{fontSize:12,color:C.muted,marginTop:6}},'vs today\'s '+fmt(CUR_TOTAL)+'/yr · ',e('span',{style:{color:C.s3}},(INC_2032_NH[25].total/CUR_TOTAL).toFixed(1)+'× increase over 25 years'))
-        )
+        (function(){
+          var ss2051=Math.round(SS_ANNUAL*Math.pow(1.023,25));
+          var grandTotal=ss2051+PEN_ANNUAL+INC_2032_NH[25].total;
+          var todayTotal=CUR_TOTAL+SS_ANNUAL+PEN_ANNUAL;
+          return e('div',{style:{textAlign:'center',padding:'14px',background:'rgba(56,189,248,0.08)',borderRadius:8,border:'1px solid rgba(56,189,248,0.2)'}},
+            e('div',{style:{fontSize:11,color:C.muted,marginBottom:6}},'Total Maximum Annual Income (2051) — All Sources'),
+            e('div',{style:{fontSize:30,fontWeight:800,fontFamily:'monospace',color:C.s3}},fmt(grandTotal)+'/yr'),
+            e('div',{style:{fontSize:12,color:C.muted,marginTop:6}},'vs today\'s all-in ',e('span',{style:{color:C.text}},fmt(todayTotal)+'/yr'),' · ',e('span',{style:{color:C.s3}},(grandTotal/todayTotal).toFixed(1)+'× increase over 25 years'))
+          );
+        })()
       )
     ),
 
