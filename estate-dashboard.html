@@ -227,6 +227,19 @@ var DIVIDENDS=[
 var MONTH_NAMES=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 var DIV_MONTH_TOTALS=[3894.99, 5248.94, 11975.8, 4793.85, 5079.07, 10750.78, 4047.0, 3814.32, 11975.8, 3894.99, 3814.32, 10750.78];
 var DIV_ANNUAL_TOTAL=80040.7;
+// Dividend income impact per rebalance strategy
+var S1_DIV_LOST=DIVIDENDS.filter(function(d){return LOSSES.some(function(l){return l.sym===d.sym;});}).reduce(function(s,d){return s+d.annual;},0);
+var S1_DIV_REINVEST=Math.round(LOSSES.reduce(function(s,l){return s+l.mv;},0)*0.022);
+var S1_DIV_DELTA=S1_DIV_REINVEST-Math.round(S1_DIV_LOST);
+var S2_TRIM_DIV_LOST=TRIM.reduce(function(s,t){var d=DIVIDENDS.find(function(x){return x.sym===t.sym;});if(!d)return s;return s+d.annual*Math.max(0,(t.mv-INVEST*0.025)/t.mv);},0);
+var S2_TRIM_REINVEST=Math.round(TRIM.reduce(function(s,t){return s+Math.max(0,t.mv-INVEST*0.025);},0)*0.028);
+var S2_DIV_DELTA=Math.round(S1_DIV_DELTA+S2_TRIM_REINVEST-S2_TRIM_DIV_LOST);
+var S3_FRATED_DIV_LOST=FRATED.reduce(function(s,f){var d=DIVIDENDS.find(function(x){return x.sym===f.sym;});if(!d)return s;return s+d.annual;},0);
+var S3_FRATED_REINVEST=Math.round(FRATED.reduce(function(s,f){return s+f.mv;},0)*0.028);
+var S3_DIV_DELTA=Math.round(S2_DIV_DELTA+S3_FRATED_REINVEST-S3_FRATED_DIV_LOST);
+// Social Security & Pension income (actual current values)
+var SS_MONTHLY=2485,SS_ANNUAL=SS_MONTHLY*12;
+var PEN_MONTHLY=3214,PEN_ANNUAL=PEN_MONTHLY*12;
 // ─── Pure SVG Chart Components ────────────────────────────────────────────────
 function useContainerWidth(ref) {
   var _s = React.useState(780);
@@ -760,8 +773,9 @@ async function fetchStooq(sym) {
 }
 
 async function fetchYahoo(sym) {
+  // Try Vercel serverless proxy first (avoids CORS), then fall back to direct
   var endpoints = [
-    '/api/quote?sym=' + encodeURIComponent(sym),
+    '/api/quote?sym=' + sym,
     'https://query1.finance.yahoo.com/v8/finance/chart/' + sym + '?interval=1d&range=1d',
     'https://query2.finance.yahoo.com/v8/finance/chart/' + sym + '?interval=1d&range=1d',
   ];
@@ -774,7 +788,7 @@ async function fetchYahoo(sym) {
       if (!meta || !meta.regularMarketPrice) continue;
       var prev = meta.chartPreviousClose || meta.previousClose || meta.regularMarketPrice;
       var price = meta.regularMarketPrice;
-      return { price, change: price - prev, changePct: prev > 0 ? (price - prev) / prev * 100 : 0 };
+      return { price: price, change: price - prev, changePct: prev > 0 ? (price - prev) / prev * 100 : 0 };
     } catch(e) {}
   }
   return null;
@@ -1056,28 +1070,6 @@ function LiveTab() {
           )
         )
       ),
-      e(Card,{style:{marginBottom:14,padding:'12px 16px'}},
-        e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8}},'Portfolio Cost Basis & Unrealized Gains — Feb 2026 Snapshot'),
-        e('div',{style:{display:'flex',gap:28,flexWrap:'wrap'}},(function(){
-          var kb=HOLDINGS.filter(function(h){return h.cb>0;});
-          var cb=kb.reduce(function(s,h){return s+h.cb;},0);
-          var mv=kb.reduce(function(s,h){return s+h.snapMv;},0);
-          var gain=mv-cb;
-          return [
-            {l:'Total Cost Basis',v:fmtF(cb),c:C.silver,sub:kb.length+' of 109 tracked'},
-            {l:'Feb 2026 MV (tracked)',v:fmtF(mv),c:C.text,sub:'snapshot prices'},
-            {l:'Unrealized Gain',v:'+'+fmtF(gain),c:C.bull,sub:'+'+(gain/cb*100).toFixed(0)+'% return on cost'},
-            {l:'Stepped-Up / Unknown',v:(HOLDINGS.length-kb.length)+' positions',c:C.muted,sub:'basis not tracked'},
-            {l:'Yield on Cost',v:(DIV_ANNUAL_TOTAL/cb*100).toFixed(1)+'%',c:C.inc1,sub:fmtF(DIV_ANNUAL_TOTAL)+'/yr dividends'}
-          ];
-        })().map(function(it){
-          return e('div',{key:it.l},
-            e('div',{style:{fontSize:10,color:C.muted,marginBottom:3}},it.l),
-            e('div',{style:{fontSize:14,fontWeight:700,fontFamily:'monospace',color:it.c}},it.v),
-            e('div',{style:{fontSize:10,color:C.muted,marginTop:1}},it.sub)
-          );
-        }))
-      ),
       e('div',{style:{display:'flex',alignItems:'center',gap:10,marginBottom:10,flexWrap:'wrap'}},
         e('span',{style:{fontSize:12,color:C.muted}},'Sort by:'),
         [{k:'mv',l:'Mkt Value'},{k:'chg',l:'Change $'},{k:'chgpct',l:'Change %'},{k:'day',l:'Day Chg'}].map(function(opt){
@@ -1174,148 +1166,190 @@ function genIncomeData(asY,nh){
 }
 var INC_PORT_ONLY=genIncomeData(99,false),INC_NOW=genIncomeData(0,false),INC_2032=genIncomeData(6,false),INC_2036=genIncomeData(10,false),INC_2041=genIncomeData(15,false),INC_2032_NH=genIncomeData(6,true);
 var CUR=INC_PORT_ONLY[0],CUR_TOTAL=CUR.equityDiv+CUR.fundInc+CUR.muniInc+CUR.cashInc;
+// ─── Novel Feature Data ───────────────────────────────────────────────────────
+function runMonteCarlo(n,yrs,start){
+  function rn(){var u1=Math.random(),u2=Math.random();return Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);}
+  function pct(arr,p){var s=arr.slice().sort(function(a,b){return a-b;});return s[Math.floor(p/100*(s.length-1))];}
+  var yv=Array.from({length:yrs+1},function(){return [];});
+  for(var i=0;i<n;i++){
+    var v=start;yv[0].push(v);
+    for(var y=1;y<=yrs;y++){v=Math.round(v*(1+0.07+0.15*rn()));yv[y].push(v);}
+  }
+  var bands=yv.map(function(arr,y){return {yr:2026+y,p10:pct(arr,10),p25:pct(arr,25),p50:pct(arr,50),p75:pct(arr,75),p90:pct(arr,90)};});
+  var finals=yv[yrs];
+  var probs=[10e6,15e6,20e6,25e6].map(function(m){return {m:m,p:Math.round(finals.filter(function(v){return v>=m;}).length/n*100)};});
+  return {bands:bands,probs:probs};
+}
+var MC=runMonteCarlo(500,25,INVEST);
+
+function MCFanChart(props){
+  var bands=props.bands;
+  var cRef=React.useRef(null);
+  var W=useContainerWidth(cRef);
+  var h=280,pw=W-PL-PR;
+  var vMax=Math.max.apply(null,bands.map(function(b){return b.p90;}))*1.06;
+  var sx=function(i){return PL+(i/(bands.length-1))*pw;};
+  var sy=scaleY(0,vMax,h);
+  function pp(key){return bands.map(function(b,i){return sx(i).toFixed(1)+','+sy(b[key]).toFixed(1);}).join(' ');}
+  function bp(lo,hi,clr,op){
+    var t=bands.map(function(b,i){return sx(i).toFixed(1)+','+sy(b[hi]).toFixed(1);}).join(' ');
+    var bt=bands.map(function(b,i){return sx(bands.length-1-i).toFixed(1)+','+sy(b[lo]).toFixed(1);}).join(' ');
+    return React.createElement('polygon',{points:t+' '+bt,fill:clr,opacity:op});
+  }
+  return React.createElement('div',{ref:cRef},
+    React.createElement('svg',{width:'100%',height:h},
+      bp('p10','p90','#38bdf8',0.07),bp('p25','p75','#38bdf8',0.13),
+      Array.from({length:5},function(_,i){
+        var v=(vMax/5)*(i+1),y2=sy(v);
+        return React.createElement('g',{key:i},
+          React.createElement('line',{x1:PL,x2:PL+pw,y1:y2,y2:y2,stroke:'#1c2a3f',strokeDasharray:'3 3'}),
+          React.createElement('text',{x:PL-6,y:y2+4,textAnchor:'end',fontSize:10,fill:'#5a7a96'},yFmtTick(v))
+        );
+      }),
+      React.createElement('polyline',{points:pp('p90'),fill:'none',stroke:'#5a7a96',strokeWidth:1,strokeDasharray:'3 2'}),
+      React.createElement('polyline',{points:pp('p10'),fill:'none',stroke:'#5a7a96',strokeWidth:1,strokeDasharray:'3 2'}),
+      React.createElement('polyline',{points:pp('p75'),fill:'none',stroke:'#38bdf8',strokeWidth:1.5,strokeDasharray:'4 3'}),
+      React.createElement('polyline',{points:pp('p25'),fill:'none',stroke:'#38bdf8',strokeWidth:1.5,strokeDasharray:'4 3'}),
+      React.createElement('polyline',{points:pp('p50'),fill:'none',stroke:'#3ec97e',strokeWidth:2.5}),
+      bands.map(function(b,i){
+        if(b.yr%5!==1&&b.yr!==2026)return null;
+        return React.createElement('text',{key:i,x:sx(i),y:h-6,textAnchor:'middle',fontSize:10,fill:'#5a7a96'},b.yr);
+      }),
+      React.createElement('text',{x:PL+pw-4,y:sy(bands[bands.length-1].p90)-6,textAnchor:'end',fontSize:10,fill:'#5a7a96'},'90th: '+yFmtTick(bands[bands.length-1].p90)),
+      React.createElement('text',{x:PL+pw-4,y:sy(bands[bands.length-1].p50)-6,textAnchor:'end',fontSize:10,fill:'#3ec97e'},'50th: '+yFmtTick(bands[bands.length-1].p50)),
+      React.createElement('text',{x:PL+pw-4,y:sy(bands[bands.length-1].p10)+14,textAnchor:'end',fontSize:10,fill:'#5a7a96'},'10th: '+yFmtTick(bands[bands.length-1].p10))
+    )
+  );
+}
+
+var CONC_TOP=HOLDINGS.slice().sort(function(a,b){return b.snapMv-a.snapMv;}).slice(0,10);
+var DGR_TOP=DIVIDENDS.slice().sort(function(a,b){return b.annual-a.annual;}).slice(0,8);
+
 // ─── Main App ─────────────────────────────────────────────────────────────────
 function App(){
-  var _s=useState('networth'),tab=_s[0],setTab=_s[1];
+  var _s=useState('home'),tab=_s[0],setTab=_s[1];
   var _s2=useState(6),atheneStart=_s2[0],setAS=_s2[1];
   var _s3=useState(false),showNH=_s3[0],setShowNH=_s3[1];
-  var _sSS=useState({monthly:2800,startYear:2032,cola:0.023}),SS=_sSS[0],setSS=_sSS[1];
-  var _sPEN=useState({monthly:0,startYear:2026,cola:0.0}),PEN=_sPEN[0],setPEN=_sPEN[1];
-  var _sCT=useState(RE_CT),curCT=_sCT[0],setCurCT=_sCT[1];
-  var _sNH=useState(RE_NH),curNH=_sNH[0],setCurNH=_sNH[1];
+  var _sSS=useState({monthly:2485,startAge:63}),SS=_sSS[0],setSS=_sSS[1];
+  var _sCL=useState({trust:true,pour:false,poa:false,hcd:false,ben:false,will:false,inv:false,deed:false}),CL=_sCL[0],setCL=_sCL[1];
   var AINC=genIncomeData(atheneStart,showNH);
   var atheneLabel=atheneStart===0?'Now (2026)':atheneStart===6?'2032 (surrender end)':atheneStart===10?'2036':'2041';
-  function ssInc(y){if(2026+y<SS.startYear)return 0;var a=2026+y-SS.startYear;return Math.round(SS.monthly*12*Math.pow(1+SS.cola,a));}
-  function penInc(y){if(2026+y<PEN.startYear)return 0;var a=2026+y-PEN.startYear;return PEN.cola>0?Math.round(PEN.monthly*12*Math.pow(1+PEN.cola,a)):Math.round(PEN.monthly*12);}
-  var _kb=HOLDINGS.filter(function(h){return h.cb>0;});
-  var totalCostBasis=_kb.reduce(function(s,h){return s+h.cb;},0);
-  var totalMvKnown=_kb.reduce(function(s,h){return s+h.snapMv;},0);
-  var totalUnrealGain=totalMvKnown-totalCostBasis;
-  var yieldOnCost=totalCostBasis>0?DIV_ANNUAL_TOTAL/totalCostBasis*100:0;
-  var _sTax=useState({filing:'mfj',state:'ct',wages:0,propTaxCT:17000,propTaxNH:40500,itemDed:0}),TAX=_sTax[0],setTAX=_sTax[1];
-  var _sRMD=useState({age:65,balance:0,convertAmt:50000}),RMDCFG=_sRMD[0],setRMDCFG=_sRMD[1];
-  function fedBracketTax(inc,f){var b=f==='mfj'?[[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[1e9,.37]]:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[1e9,.37]];var t=0,p=0;for(var i=0;i<b.length;i++){var c=Math.min(inc,b[i][0])-p;if(c<=0)break;t+=c*b[i][1];p=b[i][0];}return Math.round(t);}
-  function fedLtcgTax(q,ord,f){var th=f==='mfj'?[96700,600050]:[48350,533400];var t15=Math.max(0,Math.min(th[1],ord+q)-Math.max(th[0],ord));var t20=Math.max(0,ord+q-th[1]);return Math.round(t15*.15+t20*.20);}
-  function ctTax(inc){var b=[[20000,.03],[100000,.05],[200000,.055],[250000,.06],[500000,.065],[1000000,.069],[1e9,.0699]];var t=0,p=0;for(var i=0;i<b.length;i++){var c=Math.min(inc,b[i][0])-p;if(c<=0)break;t+=c*b[i][1];p=b[i][0];}return Math.round(t);}
-  var tabs=[{k:'networth',l:'💎 Net Worth'},{k:'dividends',l:'💰 Dividends'},{k:'live',l:'🔴 Live'},{k:'income',l:'📈 Income'},{k:'taxes',l:'🧾 Tax Prep'},{k:'rmd',l:'🏦 RMD & Roth'},{k:'estate',l:'🏛 Estate Plan'},{k:'overview',l:'Overview'},{k:'annuities',l:'Annuities'},{k:'projection',l:'Projection'},{k:'s1',l:'Strategy 1'},{k:'s2',l:'Strategy 2'},{k:'s3',l:'Strategy 3'},{k:'compare',l:'Compare All'}];
+  var TABS_MAIN=[{k:'home',l:'🏠 Home'},{k:'dividends',l:'💰 Dividend Calendar'},{k:'live',l:'📊 Live Prices'},{k:'income',l:'💵 Income Plan'},{k:'annuities',l:'📋 Annuities'},{k:'readiness',l:'✅ Estate Checklist'}];
+  var TABS_PLAN=[{k:'projection',l:'25-yr View'},{k:'overview',l:'Portfolio'},{k:'s1',l:'Rebalance A'},{k:'s2',l:'Rebalance B'},{k:'s3',l:'Rebalance C'},{k:'compare',l:'Compare'}];
+  var TABS_ANALYSIS=[{k:'montecarlo',l:'🎲 Monte Carlo'},{k:'ssclaim',l:'🏛 SS Strategy'},{k:'diy',l:'⚖ Annuity vs DIY'},{k:'concentration',l:'⚠ Concentration'},{k:'sorisk',l:'📉 Seq. Risk'},{k:'dgr',l:'🌱 DGR Tracker'},{k:'liquidity',l:'💧 Liquidity'}];
+  var tabs=TABS_MAIN.concat(TABS_PLAN).concat(TABS_ANALYSIS);
   var e=React.createElement;
-  function tabBtn(k,l){return e('button',{key:k,onClick:function(){setTab(k);},style:{padding:'8px 14px',fontSize:11,fontWeight:tab===k?700:500,letterSpacing:'0.04em',textTransform:'uppercase',cursor:'pointer',borderRadius:6,border:'1px solid '+(tab===k?C.gold:C.border),background:tab===k?C.gold:'transparent',color:tab===k?'#080d18':C.silver}},l);}
+  function tabBtn(k,l,big){return e('button',{key:k,onClick:function(){setTab(k);},style:{padding:big?'9px 16px':'7px 12px',fontSize:big?12:11,fontWeight:tab===k?700:500,letterSpacing:'0.03em',cursor:'pointer',borderRadius:6,border:'1px solid '+(tab===k?C.gold:C.border),background:tab===k?C.gold:'transparent',color:tab===k?'#080d18':tab===k?C.gold:C.silver,whiteSpace:'nowrap'}},l);}
 
   return e('div',{style:{background:C.bg,minHeight:'100vh',fontFamily:"'Helvetica Neue',Arial,sans-serif",color:C.text,padding:'22px 18px',boxSizing:'border-box'}},
-    e('div',{style:{marginBottom:20,borderBottom:'1px solid '+C.border,paddingBottom:18}},
-      e('h1',{style:{margin:0,fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'#f0f6ff'}},
-        'Living Trust — Total Estate Projection',
-        e(Badge,{key:'b1'},'FEB 2026'),e(Badge,{key:'b2',color:C.s3},'RE'),e(Badge,{key:'b3',color:C.an1},'ANNUITIES'),e(Badge,{key:'b4',color:C.inc1},'INCOME')
+    e('div',{style:{marginBottom:16,borderBottom:'1px solid '+C.border,paddingBottom:16}},
+      e('h1',{style:{margin:0,fontSize:22,fontWeight:800,letterSpacing:'-0.02em',color:'#f0f6ff'}},
+        'Family Estate Dashboard'
       ),
-      e('p',{style:{margin:'5px 0 0',color:C.muted,fontSize:12}},'Investment · 3685 Hebron Ave CT · 82 Alexander Ave NH · SB Strategic Growth Plus · Athene Agility 10')
+      e('p',{style:{margin:'4px 0 0',color:C.muted,fontSize:13}},'Investment Portfolio · Glastonbury CT · Silver Lake NH · SB Strategic Growth+ · Athene Agility 10')
     ),
-    e('div',{style:{display:'flex',gap:6,marginBottom:22,flexWrap:'wrap'}},tabs.map(function(t){return tabBtn(t.k,t.l);})),
+    e('div',{style:{marginBottom:20}},
+      e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:5}},'Main'),
+      e('div',{style:{display:'flex',gap:5,marginBottom:10,flexWrap:'wrap'}},TABS_MAIN.map(function(t){return tabBtn(t.k,t.l,true);})),
+      e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:5}},'Planning & Strategy'),
+      e('div',{style:{display:'flex',gap:5,marginBottom:10,flexWrap:'wrap'}},TABS_PLAN.map(function(t){return tabBtn(t.k,t.l,false);})),
+      e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:5}},'Advanced Analysis'),
+      e('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},TABS_ANALYSIS.map(function(t){return tabBtn(t.k,t.l,false);}))
+    ),
 
-    tab==='networth'&&(function(){
-      var curNWtotal=INVEST+curCT+curNH+SB_CURRENT_AV+ATH_CURRENT_AV+MUNIS_MV+FUNDS_MV+CASH_MV;
-      var ssNow=ssInc(0),penNow=penInc(0),curInc=CUR_TOTAL+ssNow+penNow;
+    tab==='home'&&(function(){
+      var now=new Date();
+      var MN=['January','February','March','April','May','June','July','August','September','October','November','December'];
+      var cm=now.getMonth()+1,cy=now.getFullYear();
+      var nm=cm===12?1:cm+1,ny=nm===1?cy+1:cy;
+      var thisMo=DIVIDENDS.filter(function(d){return d.months.indexOf(cm)>=0;}).sort(function(a,b){return b.perPay-a.perPay;});
+      var nextMo=DIVIDENDS.filter(function(d){return d.months.indexOf(nm)>=0;}).sort(function(a,b){return b.perPay-a.perPay;});
+      var thisMoTotal=thisMo.reduce(function(s,d){return s+d.perPay;},0);
+      var nextMoTotal=nextMo.reduce(function(s,d){return s+d.perPay;},0);
+      var ESTATE_TOTAL=INVEST+RE_CT+RE_NH+SB_CURRENT_AV+ATH_CURRENT_AV;
+      var ANN_INCOME=DIV_ANNUAL_TOTAL+Math.round(MUNI_FACE*MUNI_COUPON)+FUND_INCOME;
+      var ATH_INC_2032=Math.round(ATH_CURRENT_BB*Math.pow(1.07,6)*0.06);
+      var MONTHLY_FIXED=SS_MONTHLY+PEN_MONTHLY;
+      var actions=[
+        {pri:'2032',when:'June 2032',c:C.an2,what:'Activate Athene guaranteed income — '+fmt(ATH_INC_2032)+'/yr',how:'Call Athene at 1-800-894-2166 when surrender ends. Elect GLWB payout. No action needed until then.',why:'Benefit base grows 7%/yr until you activate. Starting 2032 = '+fmt(ATH_INC_2032)+'/yr for life.'},
+        {pri:'TAX',when:'Before Dec 31',c:C.gold,what:'Harvest investment losses — save ~'+fmtF(Math.round(57263*0.238))+' in taxes',how:'Sell TLRY (loss $23K), FIS ($14K), APA ($10K), CMP ($9K). One call to your broker or advisor.',why:'Creates capital loss offsets to pair against gains when trimming VST or NVDA'},
+        {pri:'AVAIL',when:'Any Time',c:C.bull,what:'SB 10% free withdrawal available — '+fmt(Math.round(SB_CURRENT_AV*0.1))+'/yr',how:'Call Corebridge Financial (1-800-888-2461) to request annual free withdrawal. No surrender charge.',why:'Best to leave it compounding unless cash is needed — reduces account value when taken'},
+        {pri:'ESTATE',when:'This Year',c:C.re2,what:'Complete estate planning documents',how:'Ask your attorney for: pour-over will, durable POA, healthcare directive. Verify IRA & annuity beneficiaries.',why:'Living trust is in place — these docs protect it from probate and delays'},
+        {pri:'REVIEW',when:'Annually',c:C.s3,what:'Review portfolio concentration — VST/NVDA/AVGO/NEE = 12%',how:'Use the Concentration and Tax Strategy tabs for a 2-3 year trim plan with loss offsets.',why:'Reducing single-stock exposure reduces downside risk without selling everything at once'},
+      ];
+      function DivRow(d,dim){
+        return e('div',{key:d.sym,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'9px 0',borderBottom:'1px solid '+C.border+'18'}},
+          e('div',null,
+            e('span',{style:{fontWeight:700,color:C.gold,marginRight:10,fontSize:14}},d.sym),
+            e('span',{style:{fontSize:13,color:C.muted}},d.note)
+          ),
+          e('span',{style:{fontFamily:'monospace',fontWeight:700,fontSize:14,color:dim?C.muted:C.text}},fmtF(Math.round(d.perPay)))
+        );
+      }
       return e('div',null,
-        e(Card,{style:{marginBottom:16,padding:'20px 22px',background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.25)'}},
-          e('div',{style:{display:'grid',gridTemplateColumns:'1fr auto',gap:20,alignItems:'start'}},
-            e('div',null,
-              e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}},'Total Net Worth — Feb 2026 Snapshot Baseline'),
-              e('div',{style:{fontSize:40,fontWeight:900,fontFamily:'monospace',color:C.gold,letterSpacing:'-0.03em'}},'$'+(curNWtotal/1e6).toFixed(2)+'M'),
-              e('div',{style:{fontSize:12,color:C.muted,marginTop:8,display:'flex',gap:20,flexWrap:'wrap'}},
-                e('span',null,'Portfolio: ',e('span',{style:{color:C.gold,fontWeight:600}},fmt(INVEST))),
-                e('span',null,'Real Estate: ',e('span',{style:{color:C.re2,fontWeight:600}},fmt(curCT+curNH))),
-                e('span',null,'Annuities: ',e('span',{style:{color:C.an1,fontWeight:600}},fmt(SB_CURRENT_AV+ATH_CURRENT_AV))),
-                e('span',null,'Bonds+Cash: ',e('span',{style:{color:C.inc3,fontWeight:600}},fmt(MUNIS_MV+FUNDS_MV+CASH_MV)))
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:14}},
+          [
+            {l:'Total Estate Value',v:fmt(ESTATE_TOTAL),s:'Portfolio + Real Estate + Annuities',c:C.gold},
+            {l:'SS + Pension Monthly',v:fmtF(MONTHLY_FIXED)+'/mo',s:'SS $'+SS_MONTHLY.toLocaleString()+'/mo · Pension $'+PEN_MONTHLY.toLocaleString()+'/mo',c:C.bull},
+            {l:'Athene Guaranteed (2032)',v:fmt(ATH_INC_2032)+'/yr',s:'Activate when surrender ends · for life',c:C.an2}
+          ].map(function(it){
+            return e(Card,{key:it.l,style:{borderTop:'3px solid '+it.c,padding:'18px 20px'}},
+              e('div',{style:{fontSize:12,color:C.muted,marginBottom:7,textTransform:'uppercase',letterSpacing:'0.06em'}},it.l),
+              e('div',{style:{fontSize:26,fontWeight:800,fontFamily:'monospace',color:it.c,marginBottom:4}},it.v),
+              e('div',{style:{fontSize:13,color:C.muted}},it.s)
+            );
+          })
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:14,marginBottom:22}},
+          [
+            {l:'Portfolio Income (no selling)',v:fmt(ANN_INCOME)+'/yr',s:'Dividends + munis + fund distributions',c:C.inc1},
+            {l:MN[cm-1]+' Dividends',v:fmtF(Math.round(thisMoTotal)),s:thisMo.length+' payments this month',c:C.s3},
+            {l:'Total Combined Annual Income',v:fmt(ANN_INCOME+SS_ANNUAL+PEN_ANNUAL)+'/yr',s:'Portfolio + SS $'+Math.round(SS_ANNUAL/1000)+'K + Pension $'+Math.round(PEN_ANNUAL/1000)+'K',c:C.gold}
+          ].map(function(it){
+            return e(Card,{key:it.l,style:{borderTop:'3px solid '+it.c,padding:'18px 20px'}},
+              e('div',{style:{fontSize:12,color:C.muted,marginBottom:7,textTransform:'uppercase',letterSpacing:'0.06em'}},it.l),
+              e('div',{style:{fontSize:26,fontWeight:800,fontFamily:'monospace',color:it.c,marginBottom:4}},it.v),
+              e('div',{style:{fontSize:13,color:C.muted}},it.s)
+            );
+          })
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:22}},
+          e(Card,null,
+            e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14}},
+              e('span',{style:{fontSize:15,fontWeight:700,color:C.text}},'💰 '+MN[cm-1]+' '+cy+' Dividends'),
+              e('span',{style:{fontSize:18,fontWeight:800,fontFamily:'monospace',color:C.bull}},fmtF(Math.round(thisMoTotal)))
+            ),
+            e('div',{style:{maxHeight:340,overflowY:'auto'}},
+              thisMo.length>0?thisMo.map(function(d){return DivRow(d,false);}):e('div',{style:{color:C.muted,fontSize:13,padding:'16px 0',textAlign:'center'}},'No dividends scheduled this month')
+            )
+          ),
+          e(Card,null,
+            e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:14}},
+              e('span',{style:{fontSize:15,fontWeight:700,color:C.muted}},'📅 Coming Up — '+MN[nm-1]+' '+ny),
+              e('span',{style:{fontSize:18,fontWeight:800,fontFamily:'monospace',color:C.muted}},fmtF(Math.round(nextMoTotal)))
+            ),
+            e('div',{style:{maxHeight:340,overflowY:'auto'}},nextMo.map(function(d){return DivRow(d,true);}))
+          )
+        ),
+        e('div',{style:{fontSize:16,fontWeight:700,color:C.text,marginBottom:12}},'✅ Action Items — What To Do & When'),
+        e(Card,null,
+          actions.map(function(a,i){
+            return e('div',{key:i,style:{display:'flex',gap:18,padding:'16px 0',borderBottom:i<actions.length-1?'1px solid '+C.border+'20':'none'}},
+              e('div',{style:{flexShrink:0,width:76}},
+                e('div',{style:{fontSize:10,color:a.c,fontWeight:800,textTransform:'uppercase',border:'1px solid '+a.c+'50',borderRadius:5,padding:'3px 6px',textAlign:'center',marginBottom:5}},a.pri),
+                e('div',{style:{fontSize:11,color:C.muted,textAlign:'center',lineHeight:1.4}},a.when)
+              ),
+              e('div',null,
+                e('div',{style:{fontSize:15,fontWeight:700,color:C.text,marginBottom:5}},a.what),
+                e('div',{style:{fontSize:13,color:C.silver,marginBottom:5,lineHeight:1.5}},'How: ',a.how),
+                e('div',{style:{fontSize:12,color:C.muted,lineHeight:1.5}},'Why it matters: ',a.why)
               )
-            ),
-            e('div',{style:{textAlign:'right'}},
-              e('div',{style:{fontSize:10,color:C.muted,marginBottom:4,textTransform:'uppercase',letterSpacing:'0.08em'}},'Annual Income'),
-              e('div',{style:{fontSize:26,fontWeight:800,fontFamily:'monospace',color:C.inc1}},fmt(curInc)+'/yr'),
-              ssNow===0&&e('div',{style:{fontSize:10,color:C.muted,marginTop:3}},'SS starts '+SS.startYear+' · Pension: '+(PEN.monthly>0?'$'+PEN.monthly+'/mo':'not set'))
-            )
-          ),
-          e('div',{style:{display:'flex',height:10,borderRadius:5,overflow:'hidden',marginTop:16}},
-            [{v:INVEST,c:C.gold},{v:curNH,c:C.re2},{v:curCT,c:C.re1},{v:SB_CURRENT_AV,c:C.an1},{v:ATH_CURRENT_AV,c:C.an2},{v:MUNIS_MV+FUNDS_MV+CASH_MV,c:C.inc3}].map(function(it,i){
-              return e('div',{key:i,style:{width:(it.v/curNWtotal*100)+'%',background:it.c,marginLeft:i>0?1:0}});
-            })
-          )
-        ),
-        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
-          e(Card,null,
-            e(SH,{n:'01',title:'Investment Portfolio'}),
-            e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:12}},
-              [{l:'Equity Market Value',v:EQUITY_VALUE,c:C.gold,s:'109 positions · Feb 2026'},
-               {l:'Known Cost Basis',v:totalCostBasis,c:C.silver,s:_kb.length+' of 109 tracked'},
-               {l:'Unrealized Gain',v:totalUnrealGain,c:C.bull,s:'+'+(totalUnrealGain/totalCostBasis*100).toFixed(0)+'% vs cost basis'},
-               {l:'Annual Dividends',v:DIV_ANNUAL_TOTAL,c:C.inc1,s:'Yield on cost: '+yieldOnCost.toFixed(1)+'%'}
-              ].map(function(it){return e(Card,{key:it.l,style:{padding:'10px 12px'}},
-                e('div',{style:{fontSize:10,color:C.muted,marginBottom:3}},it.l),
-                e('div',{style:{fontSize:15,fontWeight:800,fontFamily:'monospace',color:it.c}},fmtF(it.v)),
-                e('div',{style:{fontSize:10,color:C.muted,marginTop:2}},it.s)
-              );})),
-            e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:8,fontSize:11,color:C.muted,display:'flex',gap:16,flexWrap:'wrap'}},
-              [{l:'Munis',v:MUNIS_MV,c:C.inc3},{l:'Funds',v:FUNDS_MV,c:C.s1},{l:'Cash',v:CASH_MV,c:C.silver}].map(function(it){return e('span',{key:it.l},e('span',{style:{color:C.muted}},it.l+': '),e('span',{style:{color:it.c,fontWeight:600,fontFamily:'monospace'}},fmtF(it.v)));})
-            )
-          ),
-          e(Card,null,
-            e(SH,{n:'02',title:'Real Estate',sub:'Click value to edit'}),
-            [{label:'3685 Hebron Ave, Glastonbury CT',val:curCT,setter:setCurCT,c:C.re1,rate:0.03,note:'Primary residence'},{label:'82 Alexander Ave, Silver Lake NH',val:curNH,setter:setCurNH,c:C.re2,rate:0.04,note:"100' waterfront · sold Nov 2025"}].map(function(prop){
-              return e('div',{key:prop.label,style:{marginBottom:12,padding:'12px',background:'rgba(255,255,255,0.03)',borderRadius:8,border:'1px solid '+C.border}},
-                e('div',{style:{fontSize:11,color:prop.c,fontWeight:700,marginBottom:4}},prop.label),
-                e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},prop.note),
-                e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:4}},
-                  e('span',{style:{fontSize:11,color:C.muted}},'Est. value:'),
-                  e('input',{type:'text',value:'$'+Math.round(prop.val).toLocaleString(),
-                    onChange:function(ev){var v=parseInt(ev.target.value.replace(/[$,]/g,''),10);if(!isNaN(v)&&v>0)prop.setter(v);},
-                    style:{width:148,background:'rgba(255,255,255,0.07)',border:'1px solid '+prop.c+'60',borderRadius:5,padding:'5px 9px',fontSize:13,fontWeight:700,fontFamily:'monospace',color:prop.c,outline:'none'}
-                  })
-                ),
-                e('div',{style:{fontSize:10,color:C.muted}},'25yr @'+(prop.rate*100).toFixed(0)+'%/yr → ',e('span',{style:{color:prop.c,fontFamily:'monospace',fontWeight:600}},fmt(prop.val*Math.pow(1+prop.rate,25))))
-              );
-            }),
-            e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:8,display:'flex',justifyContent:'space-between',fontSize:12}},
-              e('span',{style:{color:C.muted}},'Combined Real Estate'),
-              e('span',{style:{color:C.re2,fontWeight:700,fontFamily:'monospace'}},fmtF(curCT+curNH))
-            )
-          )
-        ),
-        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}},
-          e(Card,null,
-            e(SH,{n:'03',title:'Annuities'}),
-            [{label:'SB Strategic Growth Plus',av:SB_CURRENT_AV,c:C.an1,extra:null,note:'Surrender ends 2032 · 10%/yr free = '+fmt(SB_CURRENT_AV*0.1)},{label:'Athene Agility 10',av:ATH_CURRENT_AV,c:C.an2,extra:'Benefit Base: '+fmtF(ATH_CURRENT_BB),note:'GLWB@6%BB='+fmt(ATH_CURRENT_BB*0.06)+'/yr at activation'}].map(function(ann){
-              return e('div',{key:ann.label,style:{marginBottom:12,padding:'12px',background:'rgba(255,255,255,0.03)',borderRadius:8,border:'1px solid '+C.border}},
-                e('div',{style:{fontSize:11,color:ann.c,fontWeight:700,marginBottom:4}},ann.label),
-                e('div',{style:{fontSize:22,fontWeight:800,fontFamily:'monospace',color:ann.c,marginBottom:ann.extra?4:0}},fmtF(ann.av)),
-                ann.extra&&e('div',{style:{fontSize:11,color:C.s2,marginBottom:3}},ann.extra),
-                e('div',{style:{fontSize:10,color:C.muted}},ann.note)
-              );
-            }),
-            e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:8,display:'flex',justifyContent:'space-between',fontSize:12}},
-              e('span',{style:{color:C.muted}},'Total Annuity Value'),
-              e('span',{style:{color:C.an1,fontWeight:700,fontFamily:'monospace'}},fmtF(SB_CURRENT_AV+ATH_CURRENT_AV))
-            )
-          ),
-          e(Card,null,
-            e(SH,{n:'04',title:'Annual Income — All Sources'}),
-            e('div',{style:{marginBottom:10}},
-              [{l:'Equity Dividends',v:CUR.equityDiv,c:C.inc1,note:null},{l:'Muni Interest (tax-free)',v:CUR.muniInc,c:C.inc3,note:null},{l:'Fund Distributions',v:CUR.fundInc,c:C.an1,note:null},{l:'Cash / MM',v:CUR.cashInc,c:C.silver,note:null},{l:'Social Security',v:ssNow,c:C.s2,note:ssNow===0?'Starts '+SS.startYear:null},{l:'Pension',v:penNow,c:C.re2,note:penNow===0?(PEN.monthly===0?'Not configured':'Starts '+PEN.startYear):null}].map(function(it){
-                return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderBottom:'1px solid '+C.border+'15',fontSize:12}},
-                  e('span',{style:{color:it.v>0?C.muted:C.border}},it.l),
-                  it.v>0?e('span',{style:{color:it.c,fontFamily:'monospace',fontWeight:600}},fmtF(it.v)+'/yr'):e('span',{style:{fontSize:10,color:C.muted,fontStyle:'italic'}},it.note||'—')
-                );
-              })
-            ),
-            e('div',{style:{padding:'8px 0',display:'flex',justifyContent:'space-between',borderTop:'2px solid '+C.gold+'40',fontSize:14}},
-              e('span',{style:{color:C.gold,fontWeight:700}},'Total Annual Income'),
-              e('span',{style:{color:C.gold,fontFamily:'monospace',fontWeight:900}},fmtF(curInc)+'/yr')
-            ),
-            e('div',{style:{marginTop:8,fontSize:11,color:C.muted,textAlign:'center'}},
-              'Configure SS & Pension in the ',
-              e('span',{style:{color:C.inc3,cursor:'pointer',textDecoration:'underline'},onClick:function(){setTab('income');}},'Income tab ↗')
-            )
-          )
+            );
+          })
         )
       );
     })(),
+
     tab==='dividends'&&e(DividendTab,null),
     tab==='live'&&e(LiveTab,null),
 
@@ -1407,505 +1441,8 @@ function App(){
           e('div',{style:{fontSize:30,fontWeight:800,fontFamily:'monospace',color:C.s3}},fmt(INC_2032_NH[25].total)+'/yr'),
           e('div',{style:{fontSize:12,color:C.muted,marginTop:6}},'vs today\'s '+fmt(CUR_TOTAL)+'/yr · ',e('span',{style:{color:C.s3}},(INC_2032_NH[25].total/CUR_TOTAL).toFixed(1)+'× increase over 25 years'))
         )
-      ),
-      e(SH,{n:'06',title:'Social Security & Pension',sub:'Configure amounts · included in All Sources table below'}),
-      e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
-        e(Card,{style:{borderTop:'2px solid '+C.s2}},
-          e('div',{style:{fontSize:13,fontWeight:700,color:C.s2,marginBottom:12}},'🏛 Social Security'),
-          e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}},
-            e('div',null,
-              e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},'Monthly Benefit'),
-              e('div',{style:{display:'flex',alignItems:'center',gap:6}},
-                e('span',{style:{color:C.muted}},'$'),
-                e('input',{type:'number',value:SS.monthly,min:0,max:6000,step:50,
-                  onChange:function(ev){setSS(Object.assign({},SS,{monthly:parseInt(ev.target.value)||0}));},
-                  style:{width:110,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'6px 9px',fontSize:14,fontWeight:700,color:C.s2,outline:'none',fontFamily:'monospace'}
-                }),
-                e('span',{style:{color:C.muted,fontSize:11}},'/mo')
-              )
-            ),
-            e('div',null,
-              e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},'Start Year'),
-              e('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-                [2026,2029,2032,2034,2037].map(function(yr){
-                  return e('button',{key:yr,onClick:function(){setSS(Object.assign({},SS,{startYear:yr}));},style:{padding:'5px 9px',fontSize:11,cursor:'pointer',borderRadius:5,border:'1px solid '+(SS.startYear===yr?C.s2:C.border),background:SS.startYear===yr?C.s2+'22':'transparent',color:SS.startYear===yr?C.s2:C.muted,fontWeight:SS.startYear===yr?700:400}},yr);
-                })
-              )
-            )
-          ),
-          e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:12}},
-            e('span',{style:{fontSize:10,color:C.muted}},'COLA: '),
-            [{v:0.023,l:'2.3%'},{v:0.03,l:'3.0%'},{v:0.015,l:'1.5%'},{v:0,l:'None'}].map(function(opt){
-              return e('button',{key:String(opt.v),onClick:function(){setSS(Object.assign({},SS,{cola:opt.v}));},style:{padding:'4px 9px',fontSize:11,cursor:'pointer',borderRadius:4,border:'1px solid '+(SS.cola===opt.v?C.s2:C.border),background:SS.cola===opt.v?C.s2+'22':'transparent',color:SS.cola===opt.v?C.s2:C.muted,fontWeight:SS.cola===opt.v?700:400}},opt.l);
-            })
-          ),
-          e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:10}},
-            [{l:'Annual at start ('+SS.startYear+')',v:SS.monthly*12},{l:'Annual in 2051 (with COLA)',v:ssInc(25)}].map(function(it){
-              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}},
-                e('span',{style:{color:C.muted}},it.l),
-                e('span',{style:{color:it.v>0?C.s2:C.border,fontFamily:'monospace',fontWeight:700}},it.v>0?fmtF(it.v)+'/yr':'—')
-              );
-            })
-          )
-        ),
-        e(Card,{style:{borderTop:'2px solid '+C.re2}},
-          e('div',{style:{fontSize:13,fontWeight:700,color:C.re2,marginBottom:12}},'💼 Pension Income'),
-          e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:12}},
-            e('div',null,
-              e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},'Monthly Amount'),
-              e('div',{style:{display:'flex',alignItems:'center',gap:6}},
-                e('span',{style:{color:C.muted}},'$'),
-                e('input',{type:'number',value:PEN.monthly,min:0,max:20000,step:100,
-                  onChange:function(ev){setPEN(Object.assign({},PEN,{monthly:parseInt(ev.target.value)||0}));},
-                  style:{width:110,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'6px 9px',fontSize:14,fontWeight:700,color:C.re2,outline:'none',fontFamily:'monospace'}
-                }),
-                e('span',{style:{color:C.muted,fontSize:11}},'/mo')
-              )
-            ),
-            e('div',null,
-              e('div',{style:{fontSize:10,color:C.muted,marginBottom:6}},'Start Year'),
-              e('div',{style:{display:'flex',gap:5,flexWrap:'wrap'}},
-                [2026,2028,2030,2032,2035].map(function(yr){
-                  return e('button',{key:yr,onClick:function(){setPEN(Object.assign({},PEN,{startYear:yr}));},style:{padding:'5px 9px',fontSize:11,cursor:'pointer',borderRadius:5,border:'1px solid '+(PEN.startYear===yr?C.re2:C.border),background:PEN.startYear===yr?C.re2+'22':'transparent',color:PEN.startYear===yr?C.re2:C.muted,fontWeight:PEN.startYear===yr?700:400}},yr);
-                })
-              )
-            )
-          ),
-          e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:12}},
-            e('span',{style:{fontSize:10,color:C.muted}},'COLA: '),
-            [{v:0,l:'None'},{v:0.02,l:'2%/yr'},{v:0.03,l:'3%/yr'}].map(function(opt){
-              return e('button',{key:'p'+String(opt.v),onClick:function(){setPEN(Object.assign({},PEN,{cola:opt.v}));},style:{padding:'4px 9px',fontSize:11,cursor:'pointer',borderRadius:4,border:'1px solid '+(PEN.cola===opt.v?C.re2:C.border),background:PEN.cola===opt.v?C.re2+'22':'transparent',color:PEN.cola===opt.v?C.re2:C.muted,fontWeight:PEN.cola===opt.v?700:400}},opt.l);
-            })
-          ),
-          PEN.monthly===0
-            ?e('div',{style:{fontSize:11,color:C.muted,fontStyle:'italic',borderTop:'1px solid '+C.border,paddingTop:10}},'Enter monthly pension amount above to include in projections.')
-            :e('div',{style:{borderTop:'1px solid '+C.border,paddingTop:10}},
-              [{l:'Annual at start ('+PEN.startYear+')',v:PEN.monthly*12},{l:'Annual in 2051',v:penInc(25)}].map(function(it){
-                return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:4}},
-                  e('span',{style:{color:C.muted}},it.l),
-                  e('span',{style:{color:C.re2,fontFamily:'monospace',fontWeight:700}},fmtF(it.v)+'/yr')
-                );
-              })
-            )
-        )
-      ),
-      e(Card,{style:{marginBottom:18}},
-        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'All income sources combined — portfolio uses Athene 2032 start as base'),
-        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
-          e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'po'},'Portfolio (Athene 2032)'),e(TH,{key:'ss'},'Social Security'),e(TH,{key:'pe'},'Pension'),e(TH,{key:'to'},'Grand Total')])),
-          e('tbody',null,[0,6,10,15,20,25].map(function(y){
-            var portInc=INC_2032[y].total,ssI=ssInc(y),penI=penInc(y);
-            return e('tr',{key:y,style:{borderBottom:'1px solid '+C.border+'15',background:y===6?'rgba(201,168,76,0.04)':'transparent'}},
-              e(TD,{color:y===6?C.gold:C.text},(2026+y)+(y===6?' ★':'')),
-              e(TD,{color:C.muted,mono:true},fmt(portInc)),
-              e(TD,{color:C.s2,mono:true},ssI>0?fmtF(ssI):e('span',{style:{color:C.border}},'—')),
-              e(TD,{color:C.re2,mono:true},penI>0?fmtF(penI):e('span',{style:{color:C.border}},'—')),
-              e(TD,{color:C.bull,mono:true},e('strong',null,fmt(portInc+ssI+penI)))
-            );
-          }))
-        )
       )
     ),
-
-    tab==='taxes'&&(function(){
-      var qualDiv=Math.round(CUR.equityDiv*.85),ordDiv=Math.round(CUR.equityDiv*.15);
-      var ssOrd=Math.round(ssInc(0)*.85),penOrd=penInc(0);
-      var stdDed=TAX.filing==='mfj'?30000:15000;
-      var ded=Math.max(stdDed,TAX.itemDed||0);
-      var ordRows=[
-        {l:'Wages / Other Income',v:TAX.wages,c:C.text},
-        {l:'Ordinary Dividends (~15%)',v:ordDiv,c:C.gold},
-        {l:'Fund Distributions (PDI/CEF)',v:CUR.fundInc,c:C.an1},
-        {l:'Cash / Money Market Interest',v:CUR.cashInc,c:C.silver},
-        {l:'Social Security (85% taxable)',v:ssOrd,c:C.s2},
-        {l:'Pension Income',v:penOrd,c:C.re2},
-      ];
-      var totalOrd=ordRows.reduce(function(s,r){return s+r.v;},0);
-      var taxableOrd=Math.max(0,totalOrd-ded);
-      var fedOrd=fedBracketTax(taxableOrd,TAX.filing);
-      var fedLtcg=fedLtcgTax(qualDiv,taxableOrd,TAX.filing);
-      var AGI=totalOrd+qualDiv;
-      var niitThresh=TAX.filing==='mfj'?250000:200000;
-      var investInc=ordDiv+qualDiv+CUR.fundInc+CUR.cashInc;
-      var niit=AGI>niitThresh?Math.round(Math.min(investInc,AGI-niitThresh)*.038):0;
-      var fedTotal=fedOrd+fedLtcg+niit;
-      var ctStateInc=totalOrd+qualDiv;
-      var ctStateAmt=ctTax(ctStateInc);
-      var stateAmt=TAX.state==='ct'?ctStateAmt:0;
-      var totalTax=fedTotal+stateAmt;
-      var effRate=AGI>0?totalTax/AGI*100:0;
-      var netAnnCTvsNH=ctStateAmt-(TAX.propTaxNH-TAX.propTaxCT);
-      var irmaaItbl=TAX.filing==='mfj'?[[206000,0,0,'No surcharge'],[258000,74.9,12.9,'Tier 1'],[322000,187.4,33.3,'Tier 2'],[386000,300,53.8,'Tier 3'],[750000,412.5,74.2,'Tier 4'],[Infinity,443.9,81,'Tier 5']]:[[103000,0,0,'No surcharge'],[129000,74.9,12.9,'Tier 1'],[161000,187.4,33.3,'Tier 2'],[193000,300,53.8,'Tier 3'],[500000,412.5,74.2,'Tier 4'],[Infinity,443.9,81,'Tier 5']];
-      var irmaaIdx=irmaaItbl.findIndex(function(t){return AGI<=t[0];});if(irmaaIdx<0)irmaaIdx=irmaaItbl.length-1;
-      var irmaaT=irmaaItbl[irmaaIdx],irmaaPpl=TAX.filing==='mfj'?2:1;
-      var irmaaAnn=Math.round((irmaaT[1]+irmaaT[2])*12*irmaaPpl);
-      var irmaaNxtIdx=irmaaIdx<irmaaItbl.length-1?irmaaIdx+1:-1;
-      var irmaaToNxt=irmaaNxtIdx>=0?irmaaItbl[irmaaNxtIdx][0]-AGI:null;
-      return e('div',null,
-        e(Card,{style:{marginBottom:14,padding:'12px 18px',background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.2)'}},
-          e('div',{style:{display:'flex',gap:20,flexWrap:'wrap',alignItems:'center'}},
-            e('span',{style:{fontSize:12,color:C.gold,fontWeight:700}},'Tax Profile 2026'),
-            e('div',{style:{display:'flex',alignItems:'center',gap:8}},
-              e('span',{style:{fontSize:11,color:C.muted}},'Filing Status:'),
-              [{v:'mfj',l:'Married Filing Jointly'},{v:'single',l:'Single'}].map(function(opt){return e(Pill,{key:opt.v,active:TAX.filing===opt.v,color:C.gold,onClick:function(){setTAX(Object.assign({},TAX,{filing:opt.v}));}},opt.l);})
-            ),
-            e('div',{style:{display:'flex',alignItems:'center',gap:8}},
-              e('span',{style:{fontSize:11,color:C.muted}},'State:'),
-              [{v:'ct',l:'Connecticut',c:C.re1},{v:'nh',l:'New Hampshire',c:C.bull}].map(function(opt){return e(Pill,{key:opt.v,active:TAX.state===opt.v,color:opt.c,onClick:function(){setTAX(Object.assign({},TAX,{state:opt.v}));}},opt.l);})
-            ),
-            e('div',{style:{display:'flex',alignItems:'center',gap:6}},
-              e('span',{style:{fontSize:11,color:C.muted}},'Other Wages: $'),
-              e('input',{type:'number',value:TAX.wages,min:0,step:1000,onChange:function(ev){setTAX(Object.assign({},TAX,{wages:parseInt(ev.target.value)||0}));},style:{width:110,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'5px 8px',fontSize:13,fontWeight:600,color:C.text,outline:'none',fontFamily:'monospace'}})
-            )
-          )
-        ),
-        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
-          [{l:'Federal Tax',v:fedTotal,c:C.bear,s:'Income + LTCG + NIIT'},{l:'State Tax ('+(TAX.state==='ct'?'CT':'NH')+')',v:stateAmt,c:TAX.state==='ct'?C.re1:C.bull,s:TAX.state==='ct'?'CT income tax':'No state income tax'},{l:'Total Tax Burden',v:totalTax,c:C.bear,s:effRate.toFixed(1)+'% effective rate'},{l:'After-Tax Income',v:Math.max(0,Math.round(AGI-totalTax)),c:C.bull,s:'Net spendable income'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:fmtF(it.v),sub:it.s,accent:it.c}));})
-        ),
-        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
-          e(Card,null,
-            e(SH,{n:'01',title:'2026 Income by Type'}),
-            e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
-              e('thead',null,e('tr',null,[e(TH,{key:'s'},'Source'),e(TH,{key:'a'},'Amount'),e(TH,{key:'t'},'Treatment')])),
-              e('tbody',null,
-                ordRows.filter(function(r){return r.v>0;}).map(function(r){
-                  return e('tr',{key:r.l,style:{borderBottom:'1px solid '+C.border+'15'}},
-                    e(TD,{color:r.c},r.l),e(TD,{color:r.c,mono:true},fmtF(r.v)),
-                    e('td',{style:{padding:'5px 10px'}},e('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:3,background:C.bear+'18',color:C.bear,fontWeight:600}},'ORDINARY'))
-                  );
-                }),
-                e('tr',{key:'qd',style:{borderBottom:'1px solid '+C.border+'15'}},
-                  e(TD,{color:C.gold},'Qualified Dividends (~85%)'),e(TD,{color:C.gold,mono:true},fmtF(qualDiv)),
-                  e('td',{style:{padding:'5px 10px'}},e('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:3,background:C.bull+'18',color:C.bull,fontWeight:600}},'LTCG RATE'))
-                ),
-                e('tr',{key:'muni',style:{borderBottom:'1px solid '+C.border+'15'}},
-                  e(TD,{color:C.inc3},'Muni Bond Interest'),e(TD,{color:C.inc3,mono:true},fmtF(CUR.muniInc)),
-                  e('td',{style:{padding:'5px 10px'}},e('span',{style:{fontSize:10,padding:'2px 6px',borderRadius:3,background:C.inc3+'18',color:C.inc3,fontWeight:600}},'EXEMPT'))
-                ),
-                e('tr',{key:'tot',style:{borderTop:'2px solid '+C.border}},
-                  e('td',{style:{padding:'6px 10px',fontWeight:700,color:C.text}},'Total Gross Income'),
-                  e(TD,{color:C.text,mono:true},e('strong',null,fmtF(AGI+CUR.muniInc))),
-                  e('td',{style:{padding:'5px 10px',fontSize:11,color:C.muted}},'AGI: '+fmtF(AGI))
-                )
-              )
-            )
-          ),
-          e(Card,null,
-            e(SH,{n:'02',title:'Federal Tax Detail'}),
-            [{l:'Ordinary Income',v:totalOrd},{l:'Less Deduction ('+(TAX.filing==='mfj'?'MFJ':'Single')+')',v:-ded},{l:'Taxable Ordinary',v:taxableOrd,strong:true},{l:'Tax on Ordinary Income',v:fedOrd,c:C.bear},{l:'Tax on Qual. Dividends (LTCG)',v:fedLtcg,c:C.bear},{l:'Net Investment Income Tax (3.8%)',v:niit,c:niit>0?C.bear:C.muted},{l:'Total Federal',v:fedTotal,c:C.bear,strong:true,sep:true}].map(function(it){
-              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:it.sep?'2px solid '+C.border:'none',borderBottom:it.sep?'none':'1px solid '+C.border+'10',fontSize:12}},
-                e('span',{style:{color:C.muted}},it.l),
-                e('span',{style:{color:it.c||(it.v<0?C.bull:C.text),fontFamily:'monospace',fontWeight:it.strong?800:600}},it.v<0?'-'+fmtF(-it.v):fmtF(it.v))
-              );
-            }),
-            niit>0&&e('div',{style:{marginTop:8,padding:'8px 10px',background:'rgba(224,92,92,0.07)',borderRadius:6,fontSize:11,color:C.muted}},'NIIT: AGI ',e('strong',{style:{color:C.text}},fmtF(AGI)),' > $'+Math.round(niitThresh/1e3)+'K threshold · ',e('strong',{style:{color:C.bear}},fmtF(niit)),' on ',fmtF(Math.min(investInc,AGI-niitThresh)),' of investment income'),
-            e(SH,{n:'03',title:'State: '+(TAX.state==='ct'?'Connecticut':'New Hampshire'),sub:TAX.state==='ct'?'Graduated 3–6.99%':'No state income tax'}),
-            TAX.state==='ct'
-              ?[{l:'CT Taxable Income',v:ctStateInc},{l:'CT Income Tax',v:ctStateAmt,c:C.re1,strong:true},{l:'CT Property Tax (est.)',v:TAX.propTaxCT,c:C.re1},{l:'Total CT Tax Burden',v:ctStateAmt+TAX.propTaxCT,c:C.re1,strong:true,sep:true}].map(function(it){
-                  return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:it.sep?'2px solid '+C.border:'none',borderBottom:it.sep?'none':'1px solid '+C.border+'10',fontSize:12}},
-                    e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:it.c||C.text,fontFamily:'monospace',fontWeight:it.strong?800:600}},fmtF(it.v))
-                  );
-                })
-              :e('div',null,
-                  e('div',{style:{padding:'12px',background:'rgba(62,201,126,0.07)',borderRadius:8,border:'1px solid '+C.bull+'30',marginBottom:8}},
-                    e('div',{style:{fontSize:14,fontWeight:800,color:C.bull}},'$0 State Income Tax'),
-                    e('div',{style:{fontSize:11,color:C.muted,marginTop:3}},'NH eliminated Interest & Dividends tax Jan 1, 2025. Dividends, interest, SS, and pension all tax-free at state level.')
-                  ),
-                  e('div',{style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0'}},
-                    e('span',{style:{color:C.muted}},'NH Property Tax (Silver Lake est.)'),
-                    e('span',{style:{color:C.re2,fontFamily:'monospace',fontWeight:700}},fmtF(TAX.propTaxNH)+'/yr')
-                  )
-                )
-          )
-        ),
-        e(SH,{n:'04',title:'CT vs NH — Annual Financial Impact'}),
-        e(Card,{style:{marginBottom:14}},
-          e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
-            [{l:'CT State Income Tax',v:ctStateAmt,c:C.re1,s:'Annual burden'},{l:'NH State Income Tax',v:0,c:C.bull,s:'Eliminated 2025'},{l:'Income Tax Savings (NH)',v:ctStateAmt,c:C.bull,s:'Moving CT → NH'},{l:'Net Annual Benefit',v:netAnnCTvsNH,c:netAnnCTvsNH>0?C.bull:C.bear,s:netAnnCTvsNH>0?'NH saves money overall':'CT saves (lower prop tax)'}].map(function(it){return e(Card,{key:it.l,style:{padding:'10px 12px',borderTop:'2px solid '+it.c}},e('div',{style:{fontSize:10,color:C.muted,marginBottom:3}},it.l),e('div',{style:{fontSize:16,fontWeight:800,fontFamily:'monospace',color:it.c}},fmtF(it.v)),e('div',{style:{fontSize:10,color:C.muted,marginTop:2}},it.s));})),
-          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:12}},
-            e('thead',null,e('tr',null,[e(TH,{key:'c'},'Category'),e(TH,{key:'ct'},'Connecticut'),e(TH,{key:'nh'},'New Hampshire'),e(TH,{key:'d'},'Difference')])),
-            e('tbody',null,[
-              {cat:'State Income Tax',ct:ctStateAmt,nh:0,flip:false},
-              {cat:'Property Tax (est.)',ct:TAX.propTaxCT,nh:TAX.propTaxNH,flip:true},
-              {cat:'Estate Tax',ct:0,nh:0,note:'Both $0 — estate below CT $12.9M threshold'},
-              {cat:'Total Annual State Costs',ct:ctStateAmt+TAX.propTaxCT,nh:TAX.propTaxNH,flip:false,strong:true},
-            ].map(function(r){
-              var diff=r.note?null:(r.flip?r.ct-r.nh:r.nh-r.ct);
-              var nhBetter=diff!==null&&diff>0;
-              return e('tr',{key:r.cat,style:{borderBottom:'1px solid '+C.border+'15',fontWeight:r.strong?700:400}},
-                e(TD,{color:r.strong?C.gold:C.muted},r.cat),
-                e(TD,{color:C.re1,mono:true},fmtF(r.ct)),
-                e(TD,{color:C.bull,mono:true},r.note?'—':fmtF(r.nh)),
-                r.note?e(TD,{color:C.muted},r.note):e(TD,{color:nhBetter?C.bull:C.bear,mono:true},(nhBetter?'NH saves ':'CT saves ')+fmtF(Math.abs(diff))+'/yr')
-              );
-            }))
-          ),
-          e('div',{style:{display:'flex',gap:20,alignItems:'center',flexWrap:'wrap',fontSize:12}},
-            e('span',{style:{color:C.muted}},'CT Property Tax: $'),
-            e('input',{type:'number',value:TAX.propTaxCT,min:0,step:500,onChange:function(ev){setTAX(Object.assign({},TAX,{propTaxCT:parseInt(ev.target.value)||0}));},style:{width:90,background:'rgba(255,255,255,0.05)',border:'1px solid '+C.border,borderRadius:4,padding:'4px 7px',fontSize:12,color:C.re1,outline:'none',fontFamily:'monospace'}}),
-            e('span',{style:{color:C.muted,marginLeft:8}},'NH Property Tax: $'),
-            e('input',{type:'number',value:TAX.propTaxNH,min:0,step:500,onChange:function(ev){setTAX(Object.assign({},TAX,{propTaxNH:parseInt(ev.target.value)||0}));},style:{width:90,background:'rgba(255,255,255,0.05)',border:'1px solid '+C.border,borderRadius:4,padding:'4px 7px',fontSize:12,color:C.re2,outline:'none',fontFamily:'monospace'}}),
-            e('span',{style:{color:C.muted,fontSize:11}},'· Update to match actual assessments')
-          )
-        ),
-        e(SH,{n:'05',title:'Rebalancing Strategy — Capital Gains Tax Cost',sub:'Federal 23.8% (20%+NIIT) '+(TAX.state==='ct'?'+ CT ~6.5%':'+ NH $0')}),
-        e(Card,null,
-          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:10}},
-            e('thead',null,e('tr',null,[e(TH,{key:'s'},'Strategy'),e(TH,{key:'g'},'Gains Realized'),e(TH,{key:'f'},'Federal Tax'),e(TH,{key:'st'},'State Tax'),e(TH,{key:'t'},'Total Tax'),e(TH,{key:'n'},'Net Cost (after S1 credits)')])),
-            e('tbody',null,[
-              {s:'S1 — Harvest Losses Only',gains:0,fed:0,state:0},
-              {s:'S2 — Trim 4 Positions',gains:180089,fed:S2_TAX,state:Math.round(180089*(TAX.state==='ct'?.065:0))},
-              {s:'S3 — Full Optimization',gains:238536,fed:S3_TAX,state:Math.round(238536*(TAX.state==='ct'?.065:0))},
-            ].map(function(r){
-              var total=r.fed+r.state;
-              var net=total-S1_SAV;
-              return e('tr',{key:r.s,style:{borderBottom:'1px solid '+C.border+'15'}},
-                e(TD,{color:C.gold},r.s),
-                e(TD,{mono:true},r.gains>0?fmtF(r.gains):'—'),
-                e(TD,{color:r.fed>0?C.bear:C.muted,mono:true},r.fed>0?fmtF(r.fed):'$0'),
-                e(TD,{color:r.state>0?C.re1:C.bull,mono:true},r.state>0?fmtF(r.state):'$0'),
-                e(TD,{color:r.fed>0?C.bear:C.muted,mono:true},r.fed>0?fmtF(total):'$0'),
-                e(TD,{color:net<=0?C.bull:C.bear,mono:true},net<=0?'+'+fmtF(-net)+' net savings':fmtF(net)+' net cost')
-              );
-            }))
-          ),
-          e('div',{style:{fontSize:11,color:C.muted,borderTop:'1px solid '+C.border,paddingTop:8}},
-            'S1 harvest banks ',e('strong',{style:{color:C.bull}},fmtF(S1_SAV)),' in loss credits that offset S2/S3 gain taxes. ',
-            TAX.state==='ct'
-              ?e('span',null,'CT adds ~6.5% state capital gains tax — ',e('strong',{style:{color:C.re1}},'additional '+fmtF(Math.round(238536*.065))+' on S3'),'.')
-              :e('span',{style:{color:C.bull}},'NH advantage: zero state capital gains tax saves '+fmtF(Math.round(238536*.065))+' on S3 vs CT.'),
-            e('div',{style:{marginTop:6,padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:6}},'Disclaimer: estimates only. Tax rates use 2025 brackets. Consult a CPA before executing rebalancing trades.')
-          )
-        ),
-        e(SH,{n:'06',title:'Medicare IRMAA Premium Surcharges',sub:'2025 rates · based on MAGI 2 years prior · affects Part B & D premiums'}),
-        e(Card,{style:{marginBottom:14}},
-          e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
-            [{l:'Current MAGI',v:fmtF(AGI),c:AGI>(TAX.filing==='mfj'?206000:103000)?C.bear:C.bull,s:irmaaT[3]+' · 2025 bracket'},{l:'IRMAA Surcharge/yr',v:irmaaAnn>0?fmtF(irmaaAnn)+'/yr':'$0 — None',c:irmaaAnn>0?C.bear:C.bull,s:irmaaAnn>0?'+$'+irmaaT[1]+'/mo Part B · +$'+irmaaT[2]+'/mo Part D · ×'+irmaaPpl+' people':'Below threshold'},{l:'Total Part B Premiums/yr',v:fmtF(Math.round((185+irmaaT[1])*12*irmaaPpl)),c:C.silver,s:'$185/mo base + $'+irmaaT[1]+'/mo surcharge × '+irmaaPpl+' people'},{l:'Buffer to Next Tier',v:irmaaToNxt!=null?fmtF(irmaaToNxt)+' headroom':'Max tier',c:irmaaToNxt!=null&&irmaaToNxt<25000?C.bear:C.bull,s:irmaaToNxt!=null?'Before '+irmaaItbl[irmaaNxtIdx][3]+' at $'+(irmaaItbl[irmaaNxtIdx][0]/1000).toFixed(0)+'K MAGI':'Maximum IRMAA tier reached'}].map(function(it){return e(Card,{key:it.l,style:{padding:'10px 12px',borderTop:'2px solid '+it.c}},e('div',{style:{fontSize:10,color:C.muted,marginBottom:3}},it.l),e('div',{style:{fontSize:14,fontWeight:800,fontFamily:'monospace',color:it.c}},it.v),e('div',{style:{fontSize:10,color:C.muted,marginTop:2}},it.s));})
-          ),
-          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:10}},
-            e('thead',null,e('tr',null,[e(TH,{key:'t'},'Tier'),e(TH,{key:'m'},'MAGI Threshold ('+( TAX.filing==='mfj'?'MFJ':'Single')+')'),e(TH,{key:'b'},'Part B Surcharge/mo'),e(TH,{key:'d'},'Part D Surcharge/mo'),e(TH,{key:'a'},'Annual / '+irmaaPpl+' people')])),
-            e('tbody',null,irmaaItbl.map(function(t,i){
-              var isCur=i===irmaaIdx,ann=Math.round((t[1]+t[2])*12*irmaaPpl);
-              return e('tr',{key:i,style:{borderBottom:'1px solid '+C.border+'15',background:isCur?'rgba(201,168,76,0.07)':'transparent',fontWeight:isCur?700:400}},
-                e(TD,{color:isCur?C.gold:C.muted},t[3]+(isCur?' ◀ YOU':'')),
-                e(TD,{color:C.silver,mono:true},t[0]===Infinity?'> $'+(irmaaItbl[i>0?i-1:0][0]/1000).toFixed(0)+'K':'≤ $'+(t[0]/1000).toFixed(0)+'K'),
-                e(TD,{color:t[1]>0?C.bear:C.bull,mono:true},t[1]>0?'+$'+t[1].toFixed(1):'-'),
-                e(TD,{color:t[2]>0?C.bear:C.bull,mono:true},t[2]>0?'+$'+t[2].toFixed(1):'-'),
-                e(TD,{color:ann>0?C.bear:C.bull,mono:true},ann>0?fmtF(ann):'$0')
-              );
-            }))
-          ),
-          irmaaToNxt!=null&&irmaaToNxt<30000&&e('div',{style:{padding:'8px 10px',background:'rgba(224,92,92,0.07)',borderRadius:6,border:'1px solid '+C.bear+'30',fontSize:11,color:C.muted,marginBottom:8}},
-            '⚠ ',e('strong',{style:{color:C.bear}},'Approaching next IRMAA tier:'),' Your MAGI is ',e('strong',{style:{color:C.text}},fmtF(irmaaToNxt)),' below the ',e('strong',null,irmaaItbl[irmaaNxtIdx][3]),' threshold. Consider muni bonds, HSA contributions, or deferring income to stay below $'+(irmaaItbl[irmaaNxtIdx][0]/1000).toFixed(0)+'K MAGI.'
-          ),
-          e('div',{style:{padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:6,fontSize:11,color:C.muted}},
-            'IRMAA uses MAGI from ',e('strong',{style:{color:C.silver}},'2 years prior'),' — 2026 premiums are based on your 2024 return. Recently retired with lower current income? File ',e('strong',null,'SSA-44'),' to appeal using current-year income. Note: muni bond interest counts in IRMAA MAGI even though it is federal-tax-exempt.'
-          )
-        )
-      );
-    })(),
-
-    tab==='rmd'&&(function(){
-      var RF={72:27.4,73:26.5,74:25.5,75:24.6,76:23.7,77:22.9,78:22.0,79:21.1,80:20.2,81:19.4,82:18.5,83:17.7,84:16.8,85:16.0,86:15.2,87:14.4,88:13.7,89:12.9,90:12.2,91:11.5,92:10.8,93:10.1,94:9.5,95:8.9,96:8.4,97:7.8,98:7.3,99:6.8,100:6.4};
-      var age=RMDCFG.age,bal0=RMDCFG.balance,convAmt=RMDCFG.convertAmt;
-      var yearsToRmd=Math.max(0,73-age),firstRmdYr=2026+yearsToRmd;
-      var rows=[],cb=bal0;
-      for(var y=0;y<20;y++){
-        var ca=age+y,yr=2026+y,f=RF[Math.max(72,Math.min(100,ca))];
-        var rmd=ca>=73&&cb>0?Math.round(cb/(f||1)):0;
-        var gr=Math.round(cb*0.06);
-        var nb=Math.max(0,Math.round(cb+gr-rmd));
-        rows.push({yr:yr,age:ca,f:ca>=72?f:null,rmd:rmd,gr:gr,nb:nb});
-        cb=nb;
-      }
-      var tot10=rows.slice(0,10).reduce(function(s,r){return s+r.rmd;},0);
-      var tot20=rows.reduce(function(s,r){return s+r.rmd;},0);
-      var firstRow=rows.find(function(r){return r.rmd>0;});
-      var qualDiv=Math.round(CUR.equityDiv*.85),ordDiv=Math.round(CUR.equityDiv*.15);
-      var ssOrd=Math.round(ssInc(0)*.85),penOrd=penInc(0);
-      var curOrd=TAX.wages+ordDiv+CUR.fundInc+CUR.cashInc+ssOrd+penOrd;
-      var stdDed=TAX.filing==='mfj'?30000:15000,ded=Math.max(stdDed,TAX.itemDed||0);
-      var ft0=fedBracketTax(Math.max(0,curOrd-ded),TAX.filing);
-      var ftC=fedBracketTax(Math.max(0,curOrd+convAmt-ded),TAX.filing);
-      var ctcost=ftC-ft0,ecr=convAmt>0?ctcost/convAmt*100:0;
-      var magiC=curOrd+qualDiv+convAmt,irmaaTh=TAX.filing==='mfj'?206000:103000;
-      return e('div',null,
-        e(Card,{style:{marginBottom:14,padding:'12px 18px',background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.2)'}},
-          e('div',{style:{display:'flex',gap:20,flexWrap:'wrap',alignItems:'center'}},
-            e('span',{style:{fontSize:12,color:C.gold,fontWeight:700}},'IRA / 401(k) Configuration'),
-            e('div',{style:{display:'flex',alignItems:'center',gap:6}},
-              e('span',{style:{fontSize:11,color:C.muted}},'Current Age:'),
-              e('input',{type:'number',value:age,min:55,max:100,step:1,onChange:function(ev){setRMDCFG(Object.assign({},RMDCFG,{age:parseInt(ev.target.value)||65}));},style:{width:70,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'5px 8px',fontSize:13,fontWeight:700,color:C.gold,outline:'none',fontFamily:'monospace'}})
-            ),
-            e('div',{style:{display:'flex',alignItems:'center',gap:6}},
-              e('span',{style:{fontSize:11,color:C.muted}},'IRA / 401(k) Balance: $'),
-              e('input',{type:'number',value:bal0,min:0,step:10000,onChange:function(ev){setRMDCFG(Object.assign({},RMDCFG,{balance:parseInt(ev.target.value)||0}));},style:{width:130,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.border,borderRadius:5,padding:'5px 8px',fontSize:13,fontWeight:700,color:C.gold,outline:'none',fontFamily:'monospace'}})
-            ),
-            e('span',{style:{fontSize:11,color:C.muted}},'(separate from the brokerage portfolio shown in other tabs)')
-          )
-        ),
-        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
-          [{l:'RMD Starts',v:age>=73?'Now (Active)':'Age 73 · '+firstRmdYr,c:age>=73?C.bear:C.gold,s:age>=73?'Already in distribution phase':'SECURE 2.0 · born 1951–1959'},{l:'First RMD Amount',v:firstRow?fmtF(firstRow.rmd):(bal0>0?'$0 (pre-RMD)':'Enter balance above'),c:firstRow&&firstRow.rmd>0?C.bear:C.muted,s:firstRow&&firstRow.rmd>0?'At age '+firstRow.age+' · factor '+firstRow.f+'x':'No balance entered'},{l:'10-Year Total RMDs',v:fmtF(tot10),c:tot10>0?C.bear:C.muted,s:'Forced ordinary taxable income'},{l:'Balance at Year 20',v:fmtF(rows[19]?rows[19].nb:0),c:C.gold,s:'After 20yr RMDs + 6% annual growth'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:it.v,sub:it.s,accent:it.c}));})
-        ),
-        e(SH,{n:'01',title:'20-Year RMD Schedule',sub:'IRS Uniform Lifetime Table 2022 · assumes 6%/yr account growth'}),
-        e(Card,{style:{marginBottom:14}},
-          bal0===0
-            ?e('div',{style:{padding:'20px',color:C.muted,fontSize:12,textAlign:'center',fontStyle:'italic'}},'Enter an IRA/401(k) balance above to generate the required distribution schedule.')
-            :e('div',null,
-              e('div',{style:{maxHeight:420,overflowY:'auto'}},
-                e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
-                  e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'a'},'Age'),e(TH,{key:'f'},'IRS Factor'),e(TH,{key:'r'},'RMD Required'),e(TH,{key:'g'},'6% Growth'),e(TH,{key:'b'},'Year-End Balance'),e(TH,{key:'t'},'Est. Fed Tax @22%')])),
-                  e('tbody',null,rows.map(function(r,i){
-                    var isFirst=firstRow&&r.yr===firstRow.yr;
-                    return e('tr',{key:r.yr,style:{borderBottom:'1px solid '+C.border+'15',background:isFirst?'rgba(224,92,92,0.05)':i%2===0?'transparent':'rgba(255,255,255,0.01)',fontWeight:isFirst?700:400}},
-                      e(TD,{color:r.rmd>0?C.bear:C.muted},r.yr+(isFirst?' ★':'')),
-                      e(TD,{color:r.rmd>0?C.text:C.muted},r.age),
-                      e(TD,{color:C.muted,mono:true},r.f?r.f.toFixed(1):'—'),
-                      e(TD,{color:r.rmd>0?C.bear:C.border,mono:true},r.rmd>0?fmtF(r.rmd):'—'),
-                      e(TD,{color:C.bull,mono:true},fmtF(r.gr)),
-                      e(TD,{color:C.text,mono:true},fmtF(r.nb)),
-                      e(TD,{color:r.rmd>0?C.bear:C.border,mono:true},r.rmd>0?fmtF(Math.round(r.rmd*0.22)):'—')
-                    );
-                  }))
-                )
-              ),
-              e('div',{style:{display:'flex',gap:20,marginTop:10,fontSize:12,flexWrap:'wrap'}},
-                e('span',{style:{color:C.muted}},'10yr total: ',e('span',{style:{color:C.bear,fontWeight:700}},fmtF(tot10))),
-                e('span',{style:{color:C.muted}},'20yr total: ',e('span',{style:{color:C.bear,fontWeight:700}},fmtF(tot20))),
-                e('span',{style:{color:C.muted}},'Remaining balance: ',e('span',{style:{color:C.gold,fontWeight:700}},fmtF(rows[19]?rows[19].nb:0)))
-              ),
-              e('div',{style:{marginTop:8,padding:'8px 10px',background:'rgba(255,255,255,0.03)',borderRadius:6,fontSize:11,color:C.muted}},
-                '★ First RMD year. Tax at 22% is estimated — use Tax Prep tab for precision. First RMD can be delayed to April 1 of the following year, but triggers two RMDs in year two. RMDs count as ordinary income and raise IRMAA MAGI.'
-              )
-            )
-        ),
-        e(SH,{n:'02',title:'Roth Conversion Planner',sub:'Tax cost to convert IRA to Roth now · fill lower brackets before SS and RMDs begin'}),
-        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}},
-          e(Card,null,
-            e('div',{style:{fontSize:13,fontWeight:700,color:C.s3,marginBottom:12}},'Conversion Amount This Year'),
-            e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:12}},
-              e('span',{style:{color:C.muted}},'Convert: $'),
-              e('input',{type:'number',value:convAmt,min:0,step:5000,onChange:function(ev){setRMDCFG(Object.assign({},RMDCFG,{convertAmt:parseInt(ev.target.value)||0}));},style:{width:120,background:'rgba(255,255,255,0.06)',border:'1px solid '+C.s3+'60',borderRadius:5,padding:'6px 9px',fontSize:14,fontWeight:700,color:C.s3,outline:'none',fontFamily:'monospace'}})
-            ),
-            e('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginBottom:14}},
-              [25000,50000,75000,100000,150000].map(function(amt){return e('button',{key:amt,onClick:function(){setRMDCFG(Object.assign({},RMDCFG,{convertAmt:amt}));},style:{padding:'5px 9px',fontSize:11,cursor:'pointer',borderRadius:5,border:'1px solid '+(convAmt===amt?C.s3:C.border),background:convAmt===amt?C.s3+'20':'transparent',color:convAmt===amt?C.s3:C.muted,fontWeight:convAmt===amt?700:400}},'$'+(amt/1000)+'K');})
-            ),
-            [{l:'Current Ordinary Income',v:fmtF(curOrd),c:C.muted},{l:'After-Conversion Ordinary Inc.',v:fmtF(curOrd+convAmt),c:C.text},{l:'Federal Tax — Baseline',v:fmtF(ft0),c:C.muted},{l:'Federal Tax — With Conversion',v:fmtF(ftC),c:C.bear},{l:'Conversion Tax Cost',v:fmtF(ctcost),c:C.bear,strong:true},{l:'Effective Conversion Rate',v:ecr.toFixed(1)+'%',c:ecr>28?C.bear:C.bull,strong:true}].map(function(it){
-              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderBottom:'1px solid '+C.border+'10',fontSize:12}},
-                e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:it.c,fontFamily:'monospace',fontWeight:it.strong?800:600}},it.v)
-              );
-            }),
-            TAX.state==='ct'&&convAmt>0&&e('div',{style:{marginTop:8,padding:'6px 10px',background:C.re1+'12',borderRadius:5,fontSize:11,color:C.muted}},
-              'CT adds ~5.5% on conversion: ',e('strong',{style:{color:C.re1}},fmtF(Math.round(convAmt*.055))),'. NH state tax: $0.'
-            )
-          ),
-          e(Card,null,
-            e('div',{style:{fontSize:13,fontWeight:700,color:C.s3,marginBottom:12}},'Should You Convert?'),
-            e('div',{style:{padding:'11px 13px',background:'rgba(56,189,248,0.06)',borderRadius:8,border:'1px solid '+C.s3+'25',marginBottom:12}},
-              [{txt:'Effective rate ('+ecr.toFixed(1)+'%) is below expected future RMD rate',ok:ecr<24},{txt:'MAGI stays below IRMAA threshold ($'+(irmaaTh/1e3)+'K) after conversion',ok:magiC<irmaaTh},{txt:'Before SS starts ('+SS.startYear+') — ordinary income is lower now',ok:2026<SS.startYear},{txt:'Years before first RMD for tax-free compounding',ok:yearsToRmd>=5},{txt:'Heirs inherit Roth: 10yr tax-free growth, no RMDs required',ok:true}].map(function(it,i){
-                return e('div',{key:i,style:{display:'flex',gap:8,alignItems:'flex-start',fontSize:11,marginBottom:5,opacity:it.ok?1:0.55}},
-                  e('span',{style:{color:it.ok?C.bull:C.muted,flexShrink:0}},(it.ok?'✓':'○')),
-                  e('span',{style:{color:it.ok?C.text:C.muted}},it.txt)
-                );
-              })
-            ),
-            [{l:'MAGI after conversion',v:fmtF(magiC),c:magiC>irmaaTh?C.bear:C.bull},{l:'State tax ('+TAX.state.toUpperCase()+')',v:TAX.state==='ct'?fmtF(Math.round(convAmt*.055)):'$0',c:TAX.state==='ct'?C.re1:C.bull},{l:'Tax-free Roth balance gained',v:fmtF(Math.max(0,convAmt-ctcost)),c:C.bull},{l:'Best window',v:SS.startYear>2026?'Now through '+(SS.startYear-1):'SS already started',c:C.s2}].map(function(it){
-              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:6,padding:'4px 0',borderBottom:'1px solid '+C.border+'10'}},
-                e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:it.c,fontWeight:700,fontFamily:'monospace'}},it.v)
-              );
-            }),
-            e('div',{style:{marginTop:8,fontSize:11,color:C.muted,lineHeight:1.6}},
-              'Strategy: convert annually before SS starts (',e('strong',null,SS.startYear),') when ordinary income is lower. Fill up the 22% bracket without breaching IRMAA at $'+(irmaaTh/1e3).toFixed(0)+'K MAGI. Roth has no lifetime RMDs and heirs get 10 years of tax-free growth on inherited balances.'
-            )
-          )
-        )
-      );
-    })(),
-
-    tab==='estate'&&(function(){
-      var estTotal=INVEST+curCT+curNH+SB_CURRENT_AV+ATH_CURRENT_AV+MUNIS_MV+FUNDS_MV+CASH_MV;
-      var fedEx=13990000,fedExSunset=7000000,ctEx=12920000;
-      var fedExp=Math.max(0,estTotal-fedEx),sunsetExp=Math.max(0,estTotal-fedExSunset),ctExp=Math.max(0,estTotal-ctEx);
-      var sunsetTax=sunsetExp>0?Math.round(sunsetExp*0.40):0;
-      return e('div',null,
-        e(Card,{style:{marginBottom:14,padding:'18px 22px',background:'rgba(201,168,76,0.05)',border:'1px solid rgba(201,168,76,0.25)'}},
-          e('div',{style:{display:'grid',gridTemplateColumns:'1fr auto',gap:20,alignItems:'start'}},
-            e('div',null,
-              e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}},'Total Estate Value — Feb 2026 Snapshot'),
-              e('div',{style:{fontSize:36,fontWeight:900,fontFamily:'monospace',color:C.gold,letterSpacing:'-0.03em'}},'$'+(estTotal/1e6).toFixed(2)+'M'),
-              e('div',{style:{fontSize:12,color:C.muted,marginTop:8,display:'flex',gap:20,flexWrap:'wrap'}},
-                e('span',null,'Federal Exemption (2025): ',e('span',{style:{color:C.bull,fontWeight:600}},'$'+(fedEx/1e6).toFixed(2)+'M/person')),
-                e('span',null,'CT Threshold: ',e('span',{style:{color:C.re1,fontWeight:600}},'$'+(ctEx/1e6).toFixed(2)+'M')),
-                e('span',null,'Sunset Scenario: ',e('span',{style:{color:C.bear,fontWeight:600}},'~$'+(fedExSunset/1e6).toFixed(0)+'M/person if TCJA expired'))
-              )
-            ),
-            e('div',{style:{textAlign:'right'}},
-              e('div',{style:{fontSize:10,color:C.muted,marginBottom:4,textTransform:'uppercase'}},'Federal Status'),
-              e('div',{style:{fontSize:18,fontWeight:800,fontFamily:'monospace',color:fedExp>0?C.bear:C.bull}},fedExp>0?'OVER THRESHOLD':'✓ Below $13.99M')
-            )
-          )
-        ),
-        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:14}},
-          [{l:'Federal Buffer (2025 law)',v:fedExp>0?'+'+fmtF(fedExp)+' over limit':fmtF(fedEx-estTotal)+' below threshold',c:fedExp>0?C.bear:C.bull,s:fedExp>0?'40% federal estate tax on excess':'Well below $13.99M per-person limit'},{l:'Sunset Risk (~$7M/person)',v:sunsetExp>0?'+'+fmtF(sunsetExp)+' at risk':fmtF(fedExSunset-estTotal)+' below sunset limit',c:sunsetExp>0?C.bear:C.bull,s:sunsetExp>0?'~'+fmtF(sunsetTax)+' potential tax if reverted':'Verify current federal exemption amount'},{l:'CT Estate Tax Buffer',v:ctExp>0?'+'+fmtF(ctExp)+' over CT limit':fmtF(ctEx-estTotal)+' below CT threshold',c:ctExp>0?C.re1:C.bull,s:'CT: ~12% rate on excess over $12.92M'},{l:'NH Estate Tax',v:'None',c:C.bull,s:'NH has no estate or inheritance tax'}].map(function(it){return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},e(Stat,{label:it.l,value:it.v,sub:it.s,accent:it.c}));})
-        ),
-        e(SH,{n:'01',title:'Estate Growth vs. Tax Thresholds',sub:'Will the estate outgrow the exemptions? Base 5%/yr projection'}),
-        e(Card,{style:{marginBottom:14}},
-          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:10}},
-            e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'e'},'Estate Value'),e(TH,{key:'f'},'vs $13.99M Federal'),e(TH,{key:'s'},'vs $7M Sunset'),e(TH,{key:'c'},'vs CT $12.92M'),e(TH,{key:'t'},'Sunset Tax Exposure')])),
-            e('tbody',null,[0,5,10,15,20,25].map(function(y){
-              var ev=Math.round(estTotal*Math.pow(1.05,y));
-              var fE=Math.max(0,ev-fedEx),sE=Math.max(0,ev-fedExSunset),cE=Math.max(0,ev-ctEx);
-              var sTax=sE>0?Math.round(sE*0.4):0;
-              return e('tr',{key:y,style:{borderBottom:'1px solid '+C.border+'15',background:sE>0?'rgba(224,92,92,0.04)':'transparent',fontWeight:sE>0?600:400}},
-                e(TD,{color:C.gold},2026+y),
-                e(TD,{color:C.text,mono:true},'$'+(ev/1e6).toFixed(2)+'M'),
-                e(TD,{color:fE>0?C.bear:C.bull,mono:true},fE>0?'+'+fmtF(fE)+' over':fmtF(fedEx-ev)+' buffer'),
-                e(TD,{color:sE>0?C.bear:C.bull,mono:true},sE>0?'+'+fmtF(sE)+' exposed':fmtF(fedExSunset-ev)+' buffer'),
-                e(TD,{color:cE>0?C.re1:C.bull,mono:true},cE>0?'+'+fmtF(cE)+' over CT':fmtF(ctEx-ev)+' buffer'),
-                e(TD,{color:sTax>0?C.bear:C.bull,mono:true},sTax>0?fmtF(sTax):'$0')
-              );
-            }))
-          ),
-          e('div',{style:{fontSize:11,color:C.muted,lineHeight:1.7}},'Estate grows at 5%/yr base case. The Living Trust structure is already in place. For married couples, portability allows the surviving spouse to use the deceased spouse\'s unused exemption — potentially doubling the available shield. Verify current federal exemption with your estate attorney, as TCJA provisions were scheduled to sunset December 31, 2025.')
-        ),
-        e(SH,{n:'02',title:'Estate Planning Strategies'}),
-        e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
-          e(Card,null,
-            e('div',{style:{fontSize:13,fontWeight:700,color:C.gold,marginBottom:10}},'🎁 Annual Gift Exclusion'),
-            e('div',{style:{fontSize:24,fontWeight:800,fontFamily:'monospace',color:C.gold,marginBottom:4}},'$19,000 / recipient'),
-            e('div',{style:{fontSize:11,color:C.muted,marginBottom:12}},'Per person · per year · 2025 · indexed to inflation · no limit on recipients'),
-            [{l:'3 recipients/yr',v:'$57,000/yr removed'},{l:'5 recipients/yr',v:'$95,000/yr removed'},{l:'5 recipients over 10 years',v:fmtF(19000*5*10)+' from estate'},{l:'Direct tuition/medical payments',v:'Unlimited (paid to institution)'}].map(function(it){
-              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0',borderBottom:'1px solid '+C.border+'10'}},
-                e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:C.gold,fontWeight:600}},it.v)
-              );
-            }),
-            e('div',{style:{marginTop:10,fontSize:11,color:C.muted,lineHeight:1.6}},'Annual exclusion gifts do NOT reduce the lifetime estate/gift exemption. Direct tuition and medical payments to providers are also excluded from gift tax with no dollar limit.')
-          ),
-          e(Card,null,
-            e('div',{style:{fontSize:13,fontWeight:700,color:C.bull,marginBottom:10}},'📈 Step-Up in Basis at Death'),
-            e('div',{style:{fontSize:11,color:C.muted,marginBottom:10}},'Assets in the Living Trust receive a ',e('strong',{style:{color:C.bull}},'stepped-up cost basis'),' at death — all unrealized gains are eliminated for heirs:'),
-            [{l:'Tracked cost basis',v:fmtF(totalCostBasis),c:C.silver},{l:'Market value (tracked)',v:fmtF(totalMvKnown),c:C.gold},{l:'Unrealized gain eliminated at death',v:fmtF(totalUnrealGain),c:C.bull},{l:'Capital gains tax avoided (23.8%)',v:fmtF(Math.round(totalUnrealGain*.238)),c:C.bull},{l:'Stepped-up/unknown basis positions',v:(HOLDINGS.length-_kb.length)+' of '+HOLDINGS.length+' positions',c:C.muted}].map(function(it){
-              return e('div',{key:it.l,style:{display:'flex',justifyContent:'space-between',fontSize:12,padding:'5px 0',borderBottom:'1px solid '+C.border+'10'}},
-                e('span',{style:{color:C.muted}},it.l),e('span',{style:{color:it.c,fontWeight:600,fontFamily:'monospace'}},it.v)
-              );
-            }),
-            e('div',{style:{marginTop:10,padding:'8px 10px',background:C.bull+'08',borderRadius:6,border:'1px solid '+C.bull+'20',fontSize:11,color:C.muted}},'The Living Trust already ensures step-up at death. Holding appreciated positions through death eliminates capital gains tax entirely for heirs. This makes selling appreciated stock during life expensive relative to holding.')
-          )
-        ),
-        e(Card,null,
-          e('div',{style:{fontSize:13,fontWeight:700,color:C.s3,marginBottom:12}},'Key Estate Planning Notes'),
-          e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12}},
-            [{icon:'📋',t:'Living Trust',d:'Already established. Assets pass outside probate. Avoids CT/NH probate costs (~2–5% of estate). Successor trustee takes over seamlessly with no court involvement.'},{icon:'⚖️',t:'TCJA Sunset Risk',d:'Federal exemption was scheduled to revert to ~$7M per person after 2025. Confirm current exemption amount with your estate attorney — this significantly changes planning needs.'},{icon:'🔄',t:'Roth Strategy',d:'Converting IRA to Roth reduces future estate size (taxes paid now while rates are lower) and heirs inherit tax-free accounts with a 10-year window of tax-free growth, no RMDs.'}].map(function(it){
-              return e('div',{key:it.t,style:{padding:'12px',background:'rgba(255,255,255,0.025)',borderRadius:8,border:'1px solid '+C.border}},
-                e('div',{style:{fontSize:16,marginBottom:6}},it.icon),
-                e('div',{style:{fontSize:12,fontWeight:700,color:C.text,marginBottom:4}},it.t),
-                e('div',{style:{fontSize:11,color:C.muted,lineHeight:1.6}},it.d)
-              );
-            })
-          )
-        )
-      );
-    })(),
 
     tab==='overview'&&e('div',null,
       e(SH,{n:'01',title:'Total Estate Value'}),
@@ -2019,6 +1556,19 @@ function App(){
         e(Card,null,e(Stat,{label:'Tax Savings @ 23.8%',value:fmt(S1_SAV),sub:'Future offset',accent:C.bull})),
         e(Card,null,e(Stat,{label:'25yr Terminal (Base)',value:fmt(D25.s1),sub:'+'+fmt(D25.s1-D25.base)+' vs baseline',accent:C.s1}))
       ),
+      e(Card,{style:{marginBottom:14,borderTop:'2px solid '+C.inc1,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:0}},
+        [
+          {l:'Current Div Income',v:fmtF(Math.round(DIV_ANNUAL_TOTAL))+'/yr',c:C.text},
+          {l:'Lost (losers pay little)',v:'−'+fmtF(Math.round(S1_DIV_LOST))+'/yr',c:C.bear},
+          {l:'Reinvest @ 2.2%',v:'+'+fmtF(S1_DIV_REINVEST)+'/yr',c:C.bull},
+          {l:'Net Dividend Change',v:(S1_DIV_DELTA>=0?'+':'')+fmtF(S1_DIV_DELTA)+'/yr',c:S1_DIV_DELTA>=0?C.bull:C.bear}
+        ].map(function(it,i){
+          return e('div',{key:i,style:{padding:'12px 16px',borderRight:i<3?'1px solid '+C.border+'30':'none'}},
+            e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',marginBottom:5}},it.l),
+            e('div',{style:{fontSize:15,fontWeight:800,fontFamily:'monospace',color:it.c}},it.v)
+          );
+        })
+      ),
       e(SH,{n:'01',title:'Positions to Liquidate'}),
       e(Card,{style:{marginBottom:14}},
         e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
@@ -2065,6 +1615,19 @@ function App(){
           return e(Card,{key:it.l},e(Stat,{label:it.l,value:it.l==='25yr Terminal'?fmt(it.v)+' (+'+fmt(D25.s2-D25.base)+')':fmtF(it.v),accent:it.c}));
         })
       ),
+      e(Card,{style:{marginBottom:14,borderTop:'2px solid '+C.inc1,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:0}},
+        [
+          {l:'Current Div Income',v:fmtF(Math.round(DIV_ANNUAL_TOTAL))+'/yr',c:C.text},
+          {l:'Lost (trim VST/NEE/etc)',v:'−'+fmtF(Math.round(S1_DIV_LOST+S2_TRIM_DIV_LOST))+'/yr',c:C.bear},
+          {l:'Reinvest @ 2.8%',v:'+'+fmtF(S1_DIV_REINVEST+S2_TRIM_REINVEST)+'/yr',c:C.bull},
+          {l:'Net Dividend Change',v:(S2_DIV_DELTA>=0?'+':'')+fmtF(S2_DIV_DELTA)+'/yr',c:S2_DIV_DELTA>=0?C.bull:C.bear}
+        ].map(function(it,i){
+          return e('div',{key:i,style:{padding:'12px 16px',borderRight:i<3?'1px solid '+C.border+'30':'none'}},
+            e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',marginBottom:5}},it.l),
+            e('div',{style:{fontSize:15,fontWeight:800,fontFamily:'monospace',color:it.c}},it.v)
+          );
+        })
+      ),
       e(SH,{n:'01',title:'Trim Oversized Positions — 2.5% cap'}),
       e(Card,{style:{marginBottom:14}},
         e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
@@ -2103,6 +1666,19 @@ function App(){
       e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:16}},
         [{l:'Tax Savings',v:S1_SAV,c:C.bull},{l:'Total Tax Cost',v:S3_TAX,c:C.bear},{l:'Net Tax Hit',v:S3_TAX-S1_SAV,c:C.bear},{l:'25yr Terminal',v:D25.s3,c:C.s3}].map(function(it){
           return e(Card,{key:it.l},e(Stat,{label:it.l,value:it.l==='25yr Terminal'?fmt(it.v)+' (+'+fmt(D25.s3-D25.base)+')':fmtF(it.v),accent:it.c}));
+        })
+      ),
+      e(Card,{style:{marginBottom:14,borderTop:'2px solid '+C.inc1,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:0}},
+        [
+          {l:'Current Div Income',v:fmtF(Math.round(DIV_ANNUAL_TOTAL))+'/yr',c:C.text},
+          {l:'Lost (all sells)',v:'−'+fmtF(Math.round(S1_DIV_LOST+S2_TRIM_DIV_LOST+S3_FRATED_DIV_LOST))+'/yr',c:C.bear},
+          {l:'Reinvest @ 2.8%',v:'+'+fmtF(S1_DIV_REINVEST+S2_TRIM_REINVEST+S3_FRATED_REINVEST)+'/yr',c:C.bull},
+          {l:'Net Dividend Change',v:(S3_DIV_DELTA>=0?'+':'')+fmtF(S3_DIV_DELTA)+'/yr',c:S3_DIV_DELTA>=0?C.bull:C.bear}
+        ].map(function(it,i){
+          return e('div',{key:i,style:{padding:'12px 16px',borderRight:i<3?'1px solid '+C.border+'30':'none'}},
+            e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',marginBottom:5}},it.l),
+            e('div',{style:{fontSize:15,fontWeight:800,fontFamily:'monospace',color:it.c}},it.v)
+          );
         })
       ),
       e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:14}},
@@ -2160,7 +1736,30 @@ function App(){
         e(Legend,{series:[{key:'base',name:'No Rebalance',color:C.base},{key:'s1',name:'Strategy 1',color:C.s1},{key:'s2',name:'Strategy 2',color:C.s2},{key:'s3',name:'Strategy 3',color:C.s3}]}),
         e(LineChart,{data:ADATA,xKey:'yr',xFmt:xFmtYr,H:300,series:[{key:'base',name:'No Rebalance',color:C.base,dashed:true,width:1.5},{key:'s1',name:'Strategy 1',color:C.s1,width:2},{key:'s2',name:'Strategy 2',color:C.s2,width:2},{key:'s3',name:'Strategy 3',color:C.s3,width:2.5}]})
       ),
-      e(SH,{n:'02',title:'Breakeven Analysis'}),
+      e(SH,{n:'02',title:'Dividend Income Impact by Strategy'}),
+      e(Card,{style:{marginBottom:18}}),
+      e(Card,{style:{marginBottom:18}},
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'s'},'Strategy'),e(TH,{key:'cur'},'Current Income'),e(TH,{key:'lost'},'Div Lost (sells)'),e(TH,{key:'gain'},'Reinvest Income'),e(TH,{key:'net'},'Net Change'),e(TH,{key:'new'},'New Annual Div')])),
+          e('tbody',null,[
+            {s:'No Rebalance',lost:0,gain:0,delta:0,c:C.base},
+            {s:'Strategy 1',lost:Math.round(S1_DIV_LOST),gain:S1_DIV_REINVEST,delta:S1_DIV_DELTA,c:C.s1},
+            {s:'Strategy 2',lost:Math.round(S1_DIV_LOST+S2_TRIM_DIV_LOST),gain:S1_DIV_REINVEST+S2_TRIM_REINVEST,delta:S2_DIV_DELTA,c:C.s2},
+            {s:'Strategy 3',lost:Math.round(S1_DIV_LOST+S2_TRIM_DIV_LOST+S3_FRATED_DIV_LOST),gain:S1_DIV_REINVEST+S2_TRIM_REINVEST+S3_FRATED_REINVEST,delta:S3_DIV_DELTA,c:C.s3}
+          ].map(function(r){
+            return e('tr',{key:r.s,style:{borderBottom:'1px solid '+C.border+'15'}},
+              e(TD,{color:r.c},e('strong',null,r.s)),
+              e(TD,{mono:true},fmtF(Math.round(DIV_ANNUAL_TOTAL))),
+              e(TD,{color:C.bear,mono:true},r.lost>0?'−'+fmtF(r.lost):'—'),
+              e(TD,{color:C.bull,mono:true},r.gain>0?'+'+fmtF(r.gain):'—'),
+              e(TD,{color:r.delta>=0?C.bull:C.bear,mono:true},e('strong',null,(r.delta>=0?'+':'')+fmtF(r.delta))),
+              e(TD,{color:r.c,mono:true},e('strong',null,fmtF(Math.round(DIV_ANNUAL_TOTAL+r.delta))+'/yr'))
+            );
+          }))
+        ),
+        e('div',{style:{marginTop:8,fontSize:11,color:C.muted}},'Lost dividend = income from positions being sold. Reinvest income assumes proceeds deployed at 2.2% (S1) or 2.8% blended yield (S2/S3 → VNQ/SCHF/SCHD).')
+      ),
+      e(SH,{n:'03',title:'Breakeven Analysis'}),
       e(Card,{style:{marginBottom:18}},
         e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
           e('thead',null,e('tr',null,[e(TH,{key:'s'},'Strategy'),e(TH,{key:'u'},'Upfront Tax'),e(TH,{key:'e'},'Annual Edge'),e(TH,{key:'b'},'Breakeven'),e(TH,{key:'d'},'25yr Delta')])),
@@ -2206,7 +1805,399 @@ function App(){
           'Projections are illustrative only. Annuity values estimated from $500K premiums and documented product mechanics. Actual annuity performance depends on index selections and crediting rates which change annually. Tax rates assume 23.8% LT cap gains. Not investment advice.'
         )
       )
-    )
+    ),
+
+    tab==='montecarlo'&&e('div',null,
+      e(SH,{n:'01',title:'Monte Carlo Simulation — 500 Random Paths',sub:'Investment portfolio · µ=7%/yr · σ=15%/yr · starting '+fmt(INVEST)}),
+      e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}},
+        MC.probs.map(function(p){
+          var col=p.p>=60?C.bull:p.p>=35?C.gold:p.p>=15?C.an2:C.bear;
+          return e(Card,{key:p.m,style:{borderTop:'2px solid '+col,textAlign:'center'}},
+            e('div',{style:{fontSize:11,color:C.muted,textTransform:'uppercase',marginBottom:6}},'Prob > '+fmt(p.m)),
+            e('div',{style:{fontSize:28,fontWeight:800,fontFamily:'monospace',color:col}},p.p+'%'),
+            e('div',{style:{fontSize:11,color:C.muted}},'by 2051')
+          );
+        })
+      ),
+      e(Card,{style:{marginBottom:18}},
+        e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Shaded bands = 10–90th and 25–75th percentile ranges. Green line = median path.'),
+        e('div',{style:{display:'flex',gap:16,marginBottom:8,fontSize:11}},
+          [{c:'#3ec97e',l:'Median (50th)'},{c:'#38bdf8',l:'25–75th band'},{c:'rgba(56,189,248,0.25)',l:'10–90th band'}].map(function(it){return e('div',{key:it.l,style:{display:'flex',alignItems:'center',gap:5}},e('div',{style:{width:20,height:3,background:it.c,borderRadius:2}}),e('span',{style:{color:C.muted}},it.l));})
+        ),
+        e(MCFanChart,{bands:MC.bands})
+      ),
+      e(SH,{n:'02',title:'Percentile Outcomes at Key Years'}),
+      e(Card,null,
+        e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          e('thead',null,e('tr',null,[e(TH,{key:'y'},'Year'),e(TH,{key:'p10'},'10th % (Bear)'),e(TH,{key:'p25'},'25th %'),e(TH,{key:'p50'},'Median'),e(TH,{key:'p75'},'75th %'),e(TH,{key:'p90'},'90th % (Bull)')])),
+          e('tbody',null,[5,10,15,20,25].map(function(y){
+            var b=MC.bands[y];
+            return e('tr',{key:y,style:{borderBottom:'1px solid '+C.border+'15'}},
+              e('td',{style:{padding:'6px 10px',color:C.gold,fontWeight:600}},b.yr),
+              e(TD,{color:C.bear,mono:true},fmt(b.p10)),
+              e(TD,{color:C.muted,mono:true},fmt(b.p25)),
+              e(TD,{color:C.bull,mono:true},e('strong',null,fmt(b.p50))),
+              e(TD,{color:C.s3,mono:true},fmt(b.p75)),
+              e(TD,{color:C.s2,mono:true},fmt(b.p90))
+            );
+          }))
+        ),
+        e('div',{style:{marginTop:10,fontSize:11,color:C.muted,lineHeight:1.7}},'500 simulations run at page load (refresh for new results). Median 2051: ',e('span',{style:{color:C.bull}},fmt(MC.bands[25].p50)),'  Range: ',e('span',{style:{color:C.bear}},fmt(MC.bands[25].p10)),' – ',e('span',{style:{color:C.s2}},fmt(MC.bands[25].p90)))
+      )
+    ),
+
+    tab==='ssclaim'&&(function(){
+      var FRA=SS.monthly,S62=Math.round(FRA*0.70),S70=Math.round(FRA*1.24);
+      var be6267=67+(S62*60)/(FRA-S62)/12,be6770=70+(FRA*36)/(S70-FRA)/12,be6270=70+(S62*96)/(S70-S62)/12;
+      var cdata=Array.from({length:25},function(_,i){
+        var age=62+i;
+        return {age:age,c62:age<62?0:(age-62)*12*S62,c67:age<67?0:(age-67)*12*FRA,c70:age<70?0:(age-70)*12*S70};
+      });
+      return e('div',null,
+        e(SH,{n:'01',title:'Social Security Claiming Strategy',sub:'FRA $'+FRA+'/mo · configure monthly benefit above'}),
+        e('div',{style:{display:'flex',alignItems:'center',gap:12,marginBottom:18,flexWrap:'wrap'}},
+          e('span',{style:{fontSize:12,color:C.muted}},'FRA Monthly:'),
+          [2200,2485,2800,3100,3500].map(function(v){return e(Pill,{key:v,active:SS.monthly===v,color:C.gold,onClick:function(){setSS({monthly:v,startAge:SS.startAge});}},fmtF(v)+(v===2485?' ★':''));}),
+          e('span',{style:{fontSize:11,color:C.muted,marginLeft:8}},'★ Currently receiving: ',e('strong',{style:{color:C.gold}},fmtF(SS.monthly)+'/mo'))
+        ),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}},
+          [{age:'62',mo:S62,c:C.bear,note:'30% permanent reduction'},{age:'67 (FRA)',mo:FRA,c:C.gold,note:'★ Full Retirement Age'},{age:'70',mo:S70,c:C.bull,note:'+24% delayed credits'}].map(function(it){
+            return e(Card,{key:it.age,style:{borderTop:'2px solid '+it.c}},
+              e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',marginBottom:5}},'Claim at '+it.age),
+              e('div',{style:{fontSize:24,fontWeight:800,fontFamily:'monospace',color:it.c}},fmtF(it.mo)+'/mo'),
+              e('div',{style:{fontSize:13,color:it.c}},fmtF(it.mo*12)+'/yr'),
+              e('div',{style:{fontSize:11,color:C.muted,marginTop:4}},it.note)
+            );
+          })
+        ),
+        e(SH,{n:'02',title:'Breakeven Ages'}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}},
+          [{comp:'62 vs 67',be:be6267,c:C.s2},{comp:'67 vs 70',be:be6770,c:C.s3},{comp:'62 vs 70',be:be6270,c:C.an2}].map(function(it){
+            return e(Card,{key:it.comp,style:{borderTop:'2px solid '+it.c}},
+              e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',marginBottom:5}},it.comp),
+              e('div',{style:{fontSize:26,fontWeight:800,fontFamily:'monospace',color:it.c}},'Age '+it.be.toFixed(1)),
+              e('div',{style:{fontSize:11,color:C.muted,marginTop:3}},'Later start wins after this age')
+            );
+          })
+        ),
+        e(SH,{n:'03',title:'Cumulative Lifetime Benefits'}),
+        e(Card,null,
+          e(LineChart,{data:cdata,xKey:'age',xFmt:function(v){return String(v);},H:240,
+            series:[{key:'c62',name:'Claim at 62',color:C.bear,width:2},{key:'c67',name:'Claim at 67 (FRA)',color:C.gold,width:2},{key:'c70',name:'Claim at 70',color:C.bull,width:2}]
+          }),
+          e('div',{style:{marginTop:10,fontSize:11,color:C.muted,lineHeight:1.7}},
+            'Waiting to 70 adds ',e('strong',{style:{color:C.bull}},fmtF((S70-FRA)*12)+'/yr'),' vs FRA, breakeven at age ',e('strong',null,be6770.toFixed(1)),'. Delay is particularly valuable with good health and a lower-income spouse claiming early.'
+          )
+        )
+      );
+    })(),
+
+    tab==='diy'&&(function(){
+      var PREM=1e6,DIY_NOW=Math.round(PREM*Math.pow(1.065,5)),ANN_NOW=SB_CURRENT_AV+ATH_CURRENT_AV;
+      var fwdData=Array.from({length:26},function(_,y){
+        return {yr:2026+y,ann:Math.round(ANN_NOW*Math.pow(1.042,y)),diy65:Math.round(DIY_NOW*Math.pow(1.065,y)),diy55:Math.round(DIY_NOW*Math.pow(1.055,y))};
+      });
+      var annInc2032=Math.round(SB_CURRENT_AV*0.1)+Math.round(BB_2032*0.06);
+      return e('div',null,
+        e(SH,{n:'01',title:'Annuity vs DIY Portfolio',sub:'$1M total premiums (SB $500K + Athene $500K) vs hypothetical 60/40'}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}},
+          e(Card,{style:{borderTop:'2px solid '+C.an1}},
+            e(Stat,{label:'Actual Annuity Value (2026)',value:fmt(ANN_NOW),sub:'SB '+fmt(SB_CURRENT_AV)+' + Athene '+fmt(ATH_CURRENT_AV),accent:C.an1,sm:true})
+          ),
+          e(Card,{style:{borderTop:'2px solid '+C.s3}},
+            e(Stat,{label:'DIY 60/40 @ 6.5%/yr (2026)',value:fmt(DIY_NOW),sub:fmt(PREM)+' × (1.065)^5 · hypothetical',accent:C.s3,sm:true})
+          ),
+          e(Card,{style:{borderTop:'2px solid '+C.gold}},
+            e(Stat,{label:'Annuity Guaranteed Income by 2032',value:fmt(annInc2032)+'/yr',sub:'SB free withdrawal + Athene GLWB activated',accent:C.gold,sm:true})
+          )
+        ),
+        e(SH,{n:'02',title:'Forward Projection (from 2026)'}),
+        e(Card,{style:{marginBottom:18}},
+          e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Annuities grow via credited rates; DIY at two assumed return scenarios.'),
+          e(Legend,{series:[{key:'ann',name:'Annuities (SB+Athene)',color:C.an1},{key:'diy65',name:'DIY 60/40 @ 6.5%',color:C.s3},{key:'diy55',name:'DIY 60/40 @ 5.5%',color:C.s2}]}),
+          e(LineChart,{data:fwdData,xKey:'yr',xFmt:xFmtYr,H:260,
+            series:[{key:'ann',name:'Annuities',color:C.an1,width:2.5},{key:'diy65',name:'DIY @6.5%',color:C.s3,width:2},{key:'diy55',name:'DIY @5.5%',color:C.s2,width:2,dashed:true}]
+          })
+        ),
+        e(SH,{n:'03',title:'The Real Trade-off'}),
+        e(Card,null,
+          e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,fontSize:12,lineHeight:1.8}},
+            e('div',null,
+              e('div',{style:{color:C.an1,fontWeight:700,marginBottom:8}},'What Annuities Provide'),
+              ['Guaranteed lifetime income — can\'t outlive it','Athene benefit base grows 7%/yr until activation','SB 10% free withdrawal available since 2023','No drawdown forces behavioral errors','Decoupled from stock market volatility'].map(function(t){return e('div',{key:t,style:{display:'flex',gap:8,marginBottom:3}},e('span',{style:{color:C.bull}},'✓'),e('span',{style:{color:C.muted}},t));})
+            ),
+            e('div',null,
+              e('div',{style:{color:C.s3,fontWeight:700,marginBottom:8}},'What DIY Provides'),
+              ['Potentially higher terminal value','Full liquidity at any time','Tax-loss harvesting flexibility','Fully heritable without annuity structure','Sequence risk: bad timing amplifies losses'].map(function(t){return e('div',{key:t,style:{display:'flex',gap:8,marginBottom:3}},e('span',{style:{color:C.gold}},'→'),e('span',{style:{color:C.muted}},t));})
+            )
+          ),
+          e('div',{style:{marginTop:12,padding:'10px 14px',background:C.an1+'0a',border:'1px solid '+C.an1+'30',borderRadius:6,fontSize:12,color:C.muted}},
+            e('strong',{style:{color:C.an1}},'Income Yield: '),'The annuity\'s '+fmt(annInc2032)+'/yr income by 2032 represents a '+(annInc2032/PREM*100).toFixed(1)+'% yield on the $1M premium — hard to match in DIY without concentrated credit risk or significant equity drawdown exposure.'
+          )
+        )
+      );
+    })(),
+
+    tab==='concentration'&&(function(){
+      var LTR=0.238;
+      return e('div',null,
+        e(SH,{n:'01',title:'Concentrated Position Risk — Top 10',sub:'Portfolio: '+fmt(INVEST)+' investment value'}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}},
+          e(Card,{style:{borderTop:'2px solid '+C.bear}},
+            e(Stat,{label:'Top 10 Concentration',value:(CONC_TOP.reduce(function(s,h){return s+h.snapMv;},0)/INVEST*100).toFixed(1)+'%',sub:fmt(CONC_TOP.reduce(function(s,h){return s+h.snapMv;},0))+' of '+fmt(INVEST),accent:C.bear,sm:true})
+          ),
+          e(Card,{style:{borderTop:'2px solid '+C.gold}},
+            e(Stat,{label:'Largest Position',value:CONC_TOP[0]?(CONC_TOP[0].snapMv/INVEST*100).toFixed(1)+'%':'—',sub:CONC_TOP[0]?CONC_TOP[0].sym+' · '+fmt(CONC_TOP[0].snapMv):'',accent:C.gold,sm:true})
+          ),
+          e(Card,{style:{borderTop:'2px solid '+C.s2}},
+            e(Stat,{label:'Tax Cost to Diversify Top Gainers',value:fmt(TRIM.reduce(function(s,t){return s+Math.round(t.gain*LTR);},0)),sub:'LTCG on VST+NVDA+AVGO+NEE at 23.8%',accent:C.s2,sm:true})
+          )
+        ),
+        e(Card,{style:{marginBottom:18}},
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+            e('thead',null,e('tr',null,[e(TH,{key:'r'},'#'),e(TH,{key:'s'},'Symbol'),e(TH,{key:'mv'},'Mkt Value'),e(TH,{key:'p'},'% Port'),e(TH,{key:'g'},'Gain'),e(TH,{key:'tax'},'Tax to Exit')])),
+            e('tbody',null,CONC_TOP.map(function(h,i){
+              var gain=h.snapMv-h.cb,tax=gain>0?Math.round(gain*LTR):0,pct=h.snapMv/INVEST*100;
+              return e('tr',{key:h.sym,style:{borderBottom:'1px solid '+C.border+'15',background:pct>=3?'rgba(224,92,92,0.04)':'transparent'}},
+                e('td',{style:{padding:'5px 8px',color:C.muted,fontSize:10}},i+1),
+                e('td',{style:{padding:'5px 10px',color:C.gold,fontWeight:700}},h.sym,pct>=3&&e(Badge,{color:C.bear},'CONC')),
+                e(TD,{mono:true},fmt(h.snapMv)),
+                e('td',{style:{padding:'5px 10px',color:pct>=3?C.bear:C.text,fontWeight:pct>=3?700:400,fontFamily:'monospace'}},pct.toFixed(1)+'%'),
+                e(TD,{color:gain>0?C.bull:C.bear,mono:true},(gain>0?'+':'')+fmt(gain)),
+                e(TD,{color:tax>0?C.bear:C.muted,mono:true},tax>0?fmt(tax):'—')
+              );
+            }))
+          ),
+          e('div',{style:{marginTop:8,fontSize:11,color:C.muted,padding:'6px 10px',background:'rgba(224,92,92,0.05)',borderRadius:6}},'⚠ Positions ≥3% of portfolio marked CONC. Pair trims with harvested losses from TLRY/FIS/APA/CMP to reduce net tax.')
+        ),
+        e(SH,{n:'02',title:'High-Gain Trim Candidates'}),
+        e(Card,null,
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+            e('thead',null,e('tr',null,[e(TH,{key:'s'},'Symbol'),e(TH,{key:'n'},'Name'),e(TH,{key:'mv'},'Mkt Value'),e(TH,{key:'pct'},'% Port'),e(TH,{key:'g'},'Gain'),e(TH,{key:'t'},'Tax (23.8%)')])),
+            e('tbody',null,TRIM.map(function(t){
+              return e('tr',{key:t.sym,style:{borderBottom:'1px solid '+C.border+'15'}},
+                e('td',{style:{padding:'5px 10px',color:C.gold,fontWeight:700}},t.sym),
+                e(TD,{color:C.silver},t.name),
+                e(TD,{mono:true},fmt(t.mv)),
+                e(TD,{color:C.bear,mono:true},t.pct.toFixed(1)+'%'),
+                e(TD,{color:C.bull,mono:true},'+'+fmt(t.gain)),
+                e(TD,{color:C.bear,mono:true},fmt(Math.round(t.gain*LTR)))
+              );
+            })),
+            e('tfoot',null,e('tr',null,
+              e('td',{style:{padding:'7px 10px',color:C.muted,fontSize:11},colSpan:4},'Total exposure'),
+              e('td',{style:{padding:'7px 10px',color:C.bull,fontFamily:'monospace',fontWeight:700}},'+'+fmt(TRIM.reduce(function(s,t){return s+t.gain;},0))),
+              e('td',{style:{padding:'7px 10px',color:C.bear,fontFamily:'monospace',fontWeight:700}},fmt(Math.round(TRIM.reduce(function(s,t){return s+t.gain;},0)*LTR)))
+            ))
+          )
+        )
+      );
+    })(),
+
+    tab==='sorisk'&&(function(){
+      var SPEND=120000;
+      function seq(r1,r2){
+        var v=INVEST;
+        return Array.from({length:26},function(_,y){
+          if(y===0)return {yr:2026,v:v};
+          v=Math.round(Math.max(0,v*(1+(y<=10?r1:r2))-SPEND));
+          return {yr:2026+y,v:v};
+        });
+      }
+      var lucky=seq(0.12,0.02),neutral=seq(0.07,0.07),unlucky=seq(0.02,0.12);
+      var cd=lucky.map(function(d,i){return {yr:d.yr,lucky:d.v,neutral:neutral[i].v,unlucky:unlucky[i].v};});
+      return e('div',null,
+        e(SH,{n:'01',title:'Sequence of Returns Risk',sub:'Same ~7% average · different ordering · $120K/yr spending'}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}},
+          [{l:'Lucky (12% first)',v:lucky[25].v,d:'Strong returns in first decade',c:C.bull},{l:'Neutral (7% steady)',v:neutral[25].v,d:'Flat 7% every year',c:C.gold},{l:'Unlucky (2% first)',v:unlucky[25].v,d:'Poor returns when portfolio large',c:C.bear}].map(function(it){
+            return e(Card,{key:it.l,style:{borderTop:'2px solid '+it.c}},
+              e(Stat,{label:it.l,value:fmt(it.v),sub:it.d,accent:it.c,sm:true})
+            );
+          })
+        ),
+        e(Card,{style:{marginBottom:18}},
+          e('div',{style:{fontSize:12,color:C.muted,marginBottom:8}},'Identical average returns — gap at 2051: ',e('strong',{style:{color:C.bear}},fmt(Math.abs(lucky[25].v-unlucky[25].v))),' between lucky and unlucky.'),
+          e(Legend,{series:[{key:'lucky',name:'Lucky (12% early)',color:C.bull},{key:'neutral',name:'Neutral (7%)',color:C.gold},{key:'unlucky',name:'Unlucky (2% early)',color:C.bear}]}),
+          e(LineChart,{data:cd,xKey:'yr',xFmt:xFmtYr,H:280,
+            series:[{key:'lucky',name:'Lucky',color:C.bull,width:2.5},{key:'neutral',name:'Neutral',color:C.gold,width:2,dashed:true},{key:'unlucky',name:'Unlucky',color:C.bear,width:2.5}]
+          })
+        ),
+        e(SH,{n:'02',title:'Your Structural Protection'}),
+        e(Card,null,
+          e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:20,fontSize:12,lineHeight:1.8}},
+            e('div',null,
+              e('div',{style:{color:C.bear,fontWeight:700,marginBottom:8}},'The Danger'),
+              ['Withdrawing in a crash locks in losses permanently','A 30% drop requires 43% gain just to break even','First 5–10 retirement years are highest risk window','Forced selling at lows permanently impairs compounding'].map(function(t){return e('div',{key:t,style:{display:'flex',gap:8,marginBottom:3}},e('span',{style:{color:C.bear}},'✗'),e('span',{style:{color:C.muted}},t));})
+            ),
+            e('div',null,
+              e('div',{style:{color:C.bull,fontWeight:700,marginBottom:8}},'Your Insulation'),
+              ['Annuity income covers base living expenses — no forced sales','$80K/yr dividends flow regardless of stock prices','Muni bonds: stable non-equity income through ~2034','NH rental adds $30K/yr uncorrelated to markets','$23K cash + MM covers 2–3 months immediately'].map(function(t){return e('div',{key:t,style:{display:'flex',gap:8,marginBottom:3}},e('span',{style:{color:C.bull}},'✓'),e('span',{style:{color:C.muted}},t));})
+            )
+          )
+        )
+      );
+    })(),
+
+    tab==='dgr'&&(function(){
+      var DGR_RATES=[{r:0.03,l:'3%',c:C.muted},{r:0.05,l:'5%',c:C.s2},{r:0.07,l:'7%',c:C.gold},{r:0.10,l:'10%',c:C.bull}];
+      return e('div',null,
+        e(SH,{n:'01',title:'Dividend Growth Compounder Tracker',sub:'Top 8 payers · projected at multiple DGR assumptions'}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}},
+          DGR_RATES.map(function(rate){
+            var total10=DGR_TOP.reduce(function(s,d){return s+Math.round(d.annual*Math.pow(1+rate.r,10));},0);
+            return e(Card,{key:rate.l,style:{borderTop:'2px solid '+rate.c}},
+              e('div',{style:{fontSize:10,color:C.muted,textTransform:'uppercase',marginBottom:5}},'DGR '+rate.l+' · Year 10 (2036)'),
+              e('div',{style:{fontSize:22,fontWeight:800,fontFamily:'monospace',color:rate.c}},fmt(total10)+'/yr'),
+              e('div',{style:{fontSize:11,color:C.muted,marginTop:3}},'vs '+fmt(DGR_TOP.reduce(function(s,d){return s+d.annual;},0))+' today')
+            );
+          })
+        ),
+        e(SH,{n:'02',title:'Per-Stock DGR Projections (Year 10)'}),
+        e(Card,{style:{marginBottom:18}},
+          e('table',{style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+            e('thead',null,e('tr',null,[e(TH,{key:'s'},'Symbol'),e(TH,{key:'n'},'Name'),e(TH,{key:'now'},'Today/yr'),e(TH,{key:'3'},'@3% (2036)'),e(TH,{key:'5'},'@5% (2036)'),e(TH,{key:'7'},'@7% (2036)'),e(TH,{key:'10'},'@10% (2036)')])),
+            e('tbody',null,DGR_TOP.map(function(d){
+              return e('tr',{key:d.sym,style:{borderBottom:'1px solid '+C.border+'15'}},
+                e('td',{style:{padding:'5px 10px',color:C.gold,fontWeight:700}},d.sym),
+                e(TD,{color:C.silver},d.note),
+                e(TD,{color:C.text,mono:true},fmtF(d.annual)),
+                e(TD,{color:C.muted,mono:true},fmtF(Math.round(d.annual*Math.pow(1.03,10)))),
+                e(TD,{color:C.s2,mono:true},fmtF(Math.round(d.annual*Math.pow(1.05,10)))),
+                e(TD,{color:C.gold,mono:true},fmtF(Math.round(d.annual*Math.pow(1.07,10)))),
+                e(TD,{color:C.bull,mono:true},fmtF(Math.round(d.annual*Math.pow(1.10,10))))
+              );
+            })),
+            e('tfoot',null,e('tr',{style:{borderTop:'2px solid '+C.border}},
+              e('td',{style:{padding:'7px 10px',color:C.gold,fontWeight:700},colSpan:2},'TOTAL (top 8)'),
+              e('td',{style:{padding:'7px 10px',color:C.text,fontFamily:'monospace',fontWeight:700}},fmtF(DGR_TOP.reduce(function(s,d){return s+d.annual;},0))),
+              ...[0.03,0.05,0.07,0.10].map(function(r,i){
+                var colors=[C.muted,C.s2,C.gold,C.bull];
+                return e('td',{key:r,style:{padding:'7px 10px',color:colors[i],fontFamily:'monospace',fontWeight:700}},fmtF(DGR_TOP.reduce(function(s,d){return s+Math.round(d.annual*Math.pow(1+r,10));},0)));
+              })
+            ))
+          )
+        ),
+        e(SH,{n:'03',title:'20-Year Dividend Income Trajectory'}),
+        e(Card,null,
+          e(LineChart,{
+            data:Array.from({length:21},function(_,y){
+              return Object.assign({yr:2026+y},...DGR_RATES.map(function(rate){
+                var obj={};obj['r'+rate.l]=DGR_TOP.reduce(function(s,d){return s+Math.round(d.annual*Math.pow(1+rate.r,y));},0);return obj;
+              }));
+            }),
+            xKey:'yr',xFmt:xFmtYr,H:240,
+            series:DGR_RATES.map(function(rate){return {key:'r'+rate.l,name:'DGR '+rate.l,color:rate.c,width:2};})
+          }),
+          e(Legend,{series:DGR_RATES.map(function(rate){return {key:'r'+rate.l,name:'DGR '+rate.l,color:rate.c};})})
+        )
+      );
+    })(),
+
+    tab==='liquidity'&&(function(){
+      var EXPENSES=120000,EXPENSES_HIGH=180000;
+      var CASH=CASH_MV,DIV_ANNUAL=DIV_ANNUAL_TOTAL,SB_FREE=Math.round(SB_CURRENT_AV*0.1),ATH_FREE=Math.round(ATH_CURRENT_AV*0.04);
+      var MUNI_YLD=Math.round(MUNI_FACE*MUNI_COUPON);
+      var tier1=CASH,tier2=DIV_ANNUAL+MUNI_YLD,tier3=SB_FREE+ATH_FREE;
+      var totalSafeIncome=tier2+tier3;
+      var layers=[
+        {n:'Tier 1 — Cash & MM',v:CASH_MV,rate:'$0/yr',y:0,c:C.silver,desc:'Immediately liquid · no tax event'},
+        {n:'Tier 2 — Dividends + Muni Income',v:DIV_ANNUAL+MUNI_YLD,rate:fmtF(DIV_ANNUAL+MUNI_YLD)+'/yr',y:0,c:C.inc1,desc:'Flows automatically · no selling required'},
+        {n:'Tier 3 — Annuity Free Withdrawals',v:SB_FREE+ATH_FREE,rate:fmtF(SB_FREE+ATH_FREE)+'/yr',y:0,c:C.an1,desc:'SB 10% + Athene penalty-free · no market timing'},
+        {n:'Tier 4 — Tax-Loss Offsets',v:Math.round(LOSSES.reduce(function(s,l){return s+Math.abs(l.loss);},0)*0.238),rate:'One-time harvesting',y:0,c:C.gold,desc:'Use losses to neutralize gains on trimmed winners'},
+        {n:'Tier 5 — Sell Low-Gain Positions',v:INVEST*0.15,rate:'As needed',y:0,c:C.s2,desc:'BCC, HBAN, AMD — modest gains, low tax impact'},
+        {n:'Tier 6 — Sell High-Gain Positions',v:INVEST*0.35,rate:'Last resort',y:0,c:C.bear,desc:'VST, NVDA, AVGO — large gains, significant tax cost'},
+      ];
+      var yearsAtBase=totalSafeIncome/EXPENSES;
+      var yearsAtHigh=totalSafeIncome/EXPENSES_HIGH;
+      return e('div',null,
+        e(SH,{n:'01',title:'Liquidity Cascade — Order of Operations',sub:'Crisis scenario: how many years before forced equity selling?'}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}},
+          e(Card,{style:{borderTop:'2px solid '+C.bull}},
+            e(Stat,{label:'Safe Annual Income (no selling)',value:fmt(totalSafeIncome)+'/yr',sub:'Divs + munis + annuity withdrawals',accent:C.bull,sm:true})
+          ),
+          e(Card,{style:{borderTop:'2px solid '+C.gold}},
+            e(Stat,{label:'Years Covered at $120K/yr',value:yearsAtBase.toFixed(1)+' yrs',sub:'Before touching any equities',accent:C.gold,sm:true})
+          ),
+          e(Card,{style:{borderTop:'2px solid '+C.an2}},
+            e(Stat,{label:'Years Covered at $180K/yr',value:yearsAtHigh.toFixed(1)+' yrs',sub:'High-spend scenario',accent:C.an2,sm:true})
+          )
+        ),
+        e(SH,{n:'02',title:'The 6-Tier Waterfall'}),
+        e(Card,null,
+          layers.map(function(layer,i){
+            return e('div',{key:i,style:{display:'flex',alignItems:'flex-start',gap:14,padding:'12px 0',borderBottom:i<layers.length-1?'1px solid '+C.border+'20':'none'}},
+              e('div',{style:{width:28,height:28,borderRadius:'50%',background:layer.c+'20',border:'1px solid '+layer.c+'40',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},
+                e('span',{style:{fontSize:11,fontWeight:800,color:layer.c}},i+1)
+              ),
+              e('div',{style:{flex:1}},
+                e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:3}},
+                  e('span',{style:{fontSize:13,fontWeight:700,color:layer.c}},layer.n),
+                  e('span',{style:{fontSize:12,fontFamily:'monospace',color:C.text}},fmt(layer.v))
+                ),
+                e('div',{style:{fontSize:11,color:C.muted}},layer.desc),
+                e('div',{style:{marginTop:4,height:4,borderRadius:2,background:C.border+'40',overflow:'hidden'}},
+                  e('div',{style:{height:'100%',width:Math.min(100,(layer.v/INVEST*100))+'%',background:layer.c,borderRadius:2}})
+                )
+              )
+            );
+          }),
+          e('div',{style:{marginTop:14,padding:'10px 14px',background:C.bull+'0a',border:'1px solid '+C.bull+'30',borderRadius:6,fontSize:12,color:C.muted}},
+            e('strong',{style:{color:C.bull}},'Key Insight: '),'Between dividends, muni income, and annuity withdrawals, you generate ',e('strong',{style:{color:C.bull}},fmt(totalSafeIncome)+'/yr'),' without selling a single share. This means Tiers 5–6 (equity liquidation) are truly a last resort, and you can afford to wait out any market downturn.'
+          )
+        )
+      );
+    })(),
+
+    tab==='readiness'&&(function(){
+      var items=[
+        {k:'trust',l:'Revocable Living Trust',cat:'Legal',done:CL.trust,note:'Primary estate document — holds most assets'},
+        {k:'pour',l:'Pour-over Will',cat:'Legal',done:CL.pour,note:'Captures any assets outside the trust at death'},
+        {k:'poa',l:'Durable Power of Attorney',cat:'Legal',done:CL.poa,note:'Names agent for financial decisions if incapacitated'},
+        {k:'hcd',l:'Healthcare Directive / Living Will',cat:'Medical',done:CL.hcd,note:'Medical decisions + end-of-life wishes'},
+        {k:'ben',l:'IRA & Annuity Beneficiary Designations',cat:'Accounts',done:CL.ben,note:'Must be current — overrides trust/will'},
+        {k:'will',l:'Successor Trustee Named',cat:'Legal',done:CL.will,note:'Who manages trust if both grantors incapacitated'},
+        {k:'inv',l:'Asset Inventory Document',cat:'Admin',done:CL.inv,note:'Location of all accounts, policies, login info'},
+        {k:'deed',l:'Real Estate Titled to Trust',cat:'Property',done:CL.deed,note:'3685 Hebron Ave CT + 82 Alexander Ave NH'},
+      ];
+      var catColors={Legal:C.an2,Medical:C.re2,Accounts:C.gold,Admin:C.s2,Property:C.re1};
+      var doneCount=items.filter(function(x){return x.done;}).length;
+      return e('div',null,
+        e(SH,{n:'01',title:'Estate Readiness Checklist',sub:'Click items to toggle completion status'}),
+        e('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:12,marginBottom:18}},
+          e(Card,{style:{borderTop:'2px solid '+(doneCount>=6?C.bull:doneCount>=4?C.gold:C.bear)}},
+            e(Stat,{label:'Items Complete',value:doneCount+' / '+items.length,sub:doneCount===items.length?'Fully prepared':'Action needed',accent:doneCount>=6?C.bull:doneCount>=4?C.gold:C.bear,sm:true})
+          ),
+          e(Card,{style:{borderTop:'2px solid '+C.s3}},
+            e(Stat,{label:'Estate Value to Protect',value:fmt(INVEST+RE_CT+RE_NH+SB_CURRENT_AV+ATH_CURRENT_AV),sub:'Total net assets across all categories',accent:C.s3,sm:true})
+          ),
+          e(Card,{style:{borderTop:'2px solid '+C.gold}},
+            e(Stat,{label:'Federal Estate Tax Exposure',value:INVEST+RE_CT+RE_NH+SB_CURRENT_AV+ATH_CURRENT_AV>13990000?'YES':'Below 2025 Threshold',sub:'$13.99M federal exemption (2025)',accent:C.gold,sm:true})
+          )
+        ),
+        e(Card,null,
+          items.map(function(item,i){
+            return e('div',{key:item.k,
+              onClick:function(){var n=Object.assign({},CL);n[item.k]=!CL[item.k];setCL(n);},
+              style:{display:'flex',alignItems:'flex-start',gap:14,padding:'12px 0',borderBottom:i<items.length-1?'1px solid '+C.border+'20':'none',cursor:'pointer',borderRadius:4}},
+              e('div',{style:{width:22,height:22,borderRadius:4,border:'2px solid '+(item.done?C.bull:C.border),background:item.done?C.bull+'20':'transparent',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,marginTop:1}},
+                item.done&&e('span',{style:{color:C.bull,fontWeight:800,fontSize:13}},'✓')
+              ),
+              e('div',{style:{flex:1}},
+                e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:2}},
+                  e('span',{style:{fontSize:13,fontWeight:600,color:item.done?C.text:C.muted,textDecoration:item.done?'none':'none'}},item.l),
+                  e(Badge,{color:catColors[item.cat]||C.gold},item.cat)
+                ),
+                e('div',{style:{fontSize:11,color:C.muted}},item.note)
+              )
+            );
+          }),
+          e('div',{style:{marginTop:14,padding:'10px 14px',background:'rgba(201,168,76,0.06)',border:'1px solid '+C.gold+'30',borderRadius:6,fontSize:11,color:C.muted,lineHeight:1.7}},
+            e('strong',{style:{color:C.gold}},'Next Review: '),'Estate documents should be reviewed every 2–3 years or after major life events (asset purchases, births, deaths, moves). Beneficiary designations on IRAs and annuities should be verified annually.'
+          )
+        )
+      );
+    })()
+
   );
 }
 

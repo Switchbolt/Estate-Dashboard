@@ -1,0 +1,36 @@
+{
+  "name": "estate-dashboard",
+  "version": "1.0.0",
+  "description": "Family Estate Dashboard — desktop app",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build-win": "electron-builder --win --x64",
+    "build-mac": "electron-builder --mac",
+    "build-linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.estate.dashboard",
+    "productName": "Estate Dashboard",
+    "files": [
+      "estate-dashboard.html",
+      "main.js"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^24.0.0"
+  }
+}
