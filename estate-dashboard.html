@@ -1239,7 +1239,7 @@ function App(){
   var _sCL=useState({trust:true,pour:false,poa:false,hcd:false,ben:false,will:false,inv:false,deed:false}),CL=_sCL[0],setCL=_sCL[1];
   var AINC=genIncomeData(atheneStart,showNH);
   var atheneLabel=atheneStart===0?'Now (2026)':atheneStart===6?'2032 (surrender end)':atheneStart===10?'2036':'2041';
-  var TABS_MAIN=[{k:'home',l:'🏠 Home'},{k:'dividends',l:'💰 Dividend Calendar'},{k:'live',l:'📊 Live Prices'},{k:'income',l:'💵 Income Plan'},{k:'annuities',l:'📋 Annuities'},{k:'readiness',l:'✅ Estate Checklist'}];
+  var TABS_MAIN=[{k:'home',l:'🏠 Home'},{k:'dividends',l:'💰 Dividend Calendar'},{k:'live',l:'📊 Live Prices'},{k:'income',l:'💵 Income Plan'},{k:'annuities',l:'📋 Annuities'},{k:'readiness',l:'✅ Estate Checklist'},{k:'docs',l:'📄 Documents'}];
   var TABS_PLAN=[{k:'projection',l:'25-yr View'},{k:'overview',l:'Portfolio'},{k:'s1',l:'Rebalance A'},{k:'s2',l:'Rebalance B'},{k:'s3',l:'Rebalance C'},{k:'compare',l:'Compare'}];
   var TABS_ANALYSIS=[{k:'montecarlo',l:'🎲 Monte Carlo'},{k:'ssclaim',l:'🏛 SS Strategy'},{k:'diy',l:'⚖ Annuity vs DIY'},{k:'concentration',l:'⚠ Concentration'},{k:'sorisk',l:'📉 Seq. Risk'},{k:'dgr',l:'🌱 DGR Tracker'},{k:'liquidity',l:'💧 Liquidity'}];
   var tabs=TABS_MAIN.concat(TABS_PLAN).concat(TABS_ANALYSIS);
@@ -2216,8 +2216,271 @@ function App(){
           )
         )
       );
-    })()
+    })(),
 
+    tab==='docs'&&e(DocumentsTab,null)
+
+  );
+}
+
+// ─── Document Archive (SoW / PO) ─────────────────────────────────────────────
+var DOC_KEY='estate_docs_v1';
+function loadDocs(){try{return JSON.parse(localStorage.getItem(DOC_KEY)||'[]');}catch(e){return [];}}
+function saveDocs(arr){localStorage.setItem(DOC_KEY,JSON.stringify(arr));}
+function newId(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+function nextRev(revisions){var last=revisions[revisions.length-1];if(!last)return 'A';var c=last.rev.charCodeAt(0);return String.fromCharCode(c+1);}
+function todayStr(){var d=new Date();return d.toISOString().slice(0,10);}
+
+function DocumentsTab(){
+  var e=React.createElement;
+  var _sd=useState(loadDocs),docs=_sd[0],setDocsState=_sd[1];
+  function setDocs(fn){setDocsState(function(prev){var next=typeof fn==='function'?fn(prev):fn;saveDocs(next);return next;});}
+  var _sf=useState('all'),filter=_sf[0],setFilter=_sf[1];
+  var _sm=useState(null),modal=_sm[0],setModal=_sm[1]; // null | {mode:'new'|'rev'|'view', doc?}
+  var _si=useState({number:'',title:'',type:'SOW',vendor:'',amount:'',notes:''}),inp=_si[0],setInp=_si[1];
+
+  var REV_COLS={A:C.bull,B:C.gold,C:C.s2,D:C.re2};
+  function revColor(r){return REV_COLS[r]||C.muted;}
+
+  function openNew(type){
+    setInp({number:'',title:'',type:type||'SOW',vendor:'',amount:'',notes:''});
+    setModal({mode:'new'});
+  }
+  function openRev(doc){
+    setInp({notes:''});
+    setModal({mode:'rev',doc:doc});
+  }
+  function openView(doc){setModal({mode:'view',doc:doc});}
+  function closeModal(){setModal(null);}
+
+  function submitNew(){
+    if(!inp.title.trim()||!inp.number.trim()){return;}
+    var doc={id:newId(),number:inp.number.trim(),title:inp.title.trim(),type:inp.type,vendor:inp.vendor.trim(),amount:parseFloat(inp.amount)||0,
+      revisions:[{rev:'A',date:todayStr(),status:'Active',notes:inp.notes.trim()||'Initial issue'}]};
+    setDocs(function(p){return [doc].concat(p);});
+    closeModal();
+  }
+  function submitRev(){
+    var doc=modal.doc;
+    var rev=nextRev(doc.revisions);
+    setDocs(function(p){return p.map(function(d){
+      if(d.id!==doc.id)return d;
+      var updatedRevs=d.revisions.map(function(r){return Object.assign({},r,{status:'Superseded'});});
+      updatedRevs.push({rev:rev,date:todayStr(),status:'Active',notes:inp.notes.trim()||'Rev '+rev+' issued'});
+      return Object.assign({},d,{revisions:updatedRevs});
+    });});
+    closeModal();
+  }
+  function archiveDoc(id){
+    setDocs(function(p){return p.map(function(d){
+      if(d.id!==id)return d;
+      var updatedRevs=d.revisions.map(function(r,i){return i===d.revisions.length-1?Object.assign({},r,{status:'Archived'}):r;});
+      return Object.assign({},d,{revisions:updatedRevs});
+    });});
+  }
+  function deleteDoc(id){if(!confirm('Delete this document and all revisions?'))return;setDocs(function(p){return p.filter(function(d){return d.id!==id;});});}
+
+  function currentRev(doc){return doc.revisions[doc.revisions.length-1]||{};}
+  function filteredDocs(){
+    return docs.filter(function(d){
+      var cr=currentRev(d);
+      if(filter==='sow')return d.type==='SOW';
+      if(filter==='po')return d.type==='PO';
+      if(filter==='active')return cr.status==='Active';
+      if(filter==='archived')return cr.status==='Archived';
+      return true;
+    });
+  }
+
+  var fd=filteredDocs();
+  var totalVal=docs.filter(function(d){return currentRev(d).status==='Active';}).reduce(function(s,d){return s+d.amount;},0);
+  var sowCount=docs.filter(function(d){return d.type==='SOW'&&currentRev(d).status==='Active';}).length;
+  var poCount=docs.filter(function(d){return d.type==='PO'&&currentRev(d).status==='Active';}).length;
+
+  function statusBadge(status){
+    var sc={Active:C.bull,Draft:'#aaa',Superseded:C.muted,Archived:C.re2};
+    return e('span',{style:{fontSize:9,fontWeight:700,letterSpacing:'0.07em',padding:'2px 7px',borderRadius:3,background:(sc[status]||C.muted)+'22',color:sc[status]||C.muted,textTransform:'uppercase'}},status);
+  }
+  function typeBadge(t){
+    return e('span',{style:{fontSize:9,fontWeight:700,padding:'2px 7px',borderRadius:3,background:t==='SOW'?C.an2+'33':C.gold+'33',color:t==='SOW'?C.an2:C.gold,letterSpacing:'0.07em'}},t);
+  }
+
+  // ── Form ──
+  var formStyle={position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999};
+  var formBoxStyle={background:'#12192a',border:'1px solid '+C.border,borderRadius:12,padding:'28px 32px',minWidth:480,maxWidth:560};
+  var labelStyle={fontSize:11,color:C.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:4,display:'block'};
+  var inpStyle={width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid '+C.border,borderRadius:6,color:C.text,fontSize:13,padding:'8px 10px',boxSizing:'border-box',outline:'none'};
+
+  function ModalForm(){
+    if(!modal)return null;
+    if(modal.mode==='view'){
+      var d=modal.doc;
+      return e('div',{style:formStyle,onClick:closeModal},
+        e('div',{style:Object.assign({},formBoxStyle,{minWidth:520}),onClick:function(ev){ev.stopPropagation();}},
+          e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:18}},
+            e('div',null,
+              e('div',{style:{fontSize:16,fontWeight:800,color:C.text,marginBottom:4}},d.number+' — '+d.title),
+              e('div',{style:{display:'flex',gap:8}},typeBadge(d.type),statusBadge(currentRev(d).status))
+            ),
+            e('button',{onClick:closeModal,style:{background:'none',border:'none',color:C.muted,fontSize:18,cursor:'pointer'}},'✕')
+          ),
+          d.vendor&&e('div',{style:{fontSize:12,color:C.silver,marginBottom:4}},'Vendor / Contractor: ',e('strong',{style:{color:C.text}},d.vendor)),
+          d.amount>0&&e('div',{style:{fontSize:12,color:C.silver,marginBottom:12}},'Contract Value: ',e('strong',{style:{color:C.gold}},'$'+d.amount.toLocaleString())),
+          e('div',{style:{fontSize:11,color:C.muted,textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:8}},'Revision History'),
+          e('div',{style:{display:'flex',flexDirection:'column',gap:6}},
+            d.revisions.slice().reverse().map(function(r){
+              return e('div',{key:r.rev,style:{background:'rgba(255,255,255,0.03)',border:'1px solid '+C.border,borderRadius:8,padding:'10px 14px',display:'flex',gap:14,alignItems:'flex-start'}},
+                e('div',{style:{minWidth:28,height:28,borderRadius:6,background:revColor(r.rev)+'22',color:revColor(r.rev),fontWeight:800,fontSize:13,display:'flex',alignItems:'center',justifyContent:'center'}},r.rev),
+                e('div',{style:{flex:1}},
+                  e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:3}},
+                    e('span',{style:{fontSize:12,color:C.text,fontWeight:600}},'Rev '+r.rev),
+                    e('div',{style:{display:'flex',gap:6,alignItems:'center'}},
+                      statusBadge(r.status),
+                      e('span',{style:{fontSize:11,color:C.muted}},r.date)
+                    )
+                  ),
+                  r.notes&&e('div',{style:{fontSize:11,color:C.silver}},r.notes)
+                )
+              );
+            })
+          ),
+          e('div',{style:{display:'flex',justifyContent:'flex-end',gap:8,marginTop:18}},
+            e('button',{onClick:function(){closeModal();openRev(d);},style:{padding:'8px 16px',fontSize:12,background:C.gold,color:'#080d18',border:'none',borderRadius:6,cursor:'pointer',fontWeight:700}},'+ Rev Up'),
+            e('button',{onClick:closeModal,style:{padding:'8px 16px',fontSize:12,background:'transparent',border:'1px solid '+C.border,borderRadius:6,color:C.silver,cursor:'pointer'}},'Close')
+          )
+        )
+      );
+    }
+    if(modal.mode==='new'){
+      return e('div',{style:formStyle,onClick:closeModal},
+        e('div',{style:formBoxStyle,onClick:function(ev){ev.stopPropagation();}},
+          e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}},
+            e('div',{style:{fontSize:15,fontWeight:800,color:C.text}},'New Document'),
+            e('button',{onClick:closeModal,style:{background:'none',border:'none',color:C.muted,fontSize:18,cursor:'pointer'}},'✕')
+          ),
+          e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
+            e('div',null,
+              e('label',{style:labelStyle},'Doc Type'),
+              e('select',{value:inp.type,onChange:function(ev){setInp(function(p){return Object.assign({},p,{type:ev.target.value});});},style:Object.assign({},inpStyle,{cursor:'pointer'})},
+                e('option',{value:'SOW'},'Statement of Work (SoW)'),
+                e('option',{value:'PO'},'Purchase Order (PO)')
+              )
+            ),
+            e('div',null,
+              e('label',{style:labelStyle},'Document Number'),
+              e('input',{value:inp.number,onChange:function(ev){setInp(function(p){return Object.assign({},p,{number:ev.target.value});});},placeholder:'e.g. SOW-2026-001',style:inpStyle})
+            )
+          ),
+          e('div',{style:{marginBottom:14}},
+            e('label',{style:labelStyle},'Title / Description'),
+            e('input',{value:inp.title,onChange:function(ev){setInp(function(p){return Object.assign({},p,{title:ev.target.value});});},placeholder:'e.g. Foundation Repair — NH Property',style:inpStyle})
+          ),
+          e('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:14}},
+            e('div',null,
+              e('label',{style:labelStyle},'Vendor / Contractor'),
+              e('input',{value:inp.vendor,onChange:function(ev){setInp(function(p){return Object.assign({},p,{vendor:ev.target.value});});},placeholder:'Company name',style:inpStyle})
+            ),
+            e('div',null,
+              e('label',{style:labelStyle},'Contract Value ($)'),
+              e('input',{type:'number',value:inp.amount,onChange:function(ev){setInp(function(p){return Object.assign({},p,{amount:ev.target.value});});},placeholder:'0',style:inpStyle})
+            )
+          ),
+          e('div',{style:{marginBottom:20}},
+            e('label',{style:labelStyle},'Notes (Rev A)'),
+            e('textarea',{value:inp.notes,onChange:function(ev){setInp(function(p){return Object.assign({},p,{notes:ev.target.value});});},placeholder:'Initial issue — scope summary, key dates...',rows:3,style:Object.assign({},inpStyle,{resize:'vertical'})})
+          ),
+          e('div',{style:{display:'flex',justifyContent:'flex-end',gap:8}},
+            e('button',{onClick:closeModal,style:{padding:'9px 18px',fontSize:12,background:'transparent',border:'1px solid '+C.border,borderRadius:6,color:C.silver,cursor:'pointer'}},'Cancel'),
+            e('button',{onClick:submitNew,disabled:!inp.title.trim()||!inp.number.trim(),style:{padding:'9px 18px',fontSize:12,background:(!inp.title.trim()||!inp.number.trim())?C.border:C.gold,color:'#080d18',border:'none',borderRadius:6,cursor:'pointer',fontWeight:700}},'Save Rev A')
+          )
+        )
+      );
+    }
+    if(modal.mode==='rev'){
+      var d=modal.doc;var cr=currentRev(d);var nrev=nextRev(d.revisions);
+      return e('div',{style:formStyle,onClick:closeModal},
+        e('div',{style:formBoxStyle,onClick:function(ev){ev.stopPropagation();}},
+          e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}},
+            e('div',null,
+              e('div',{style:{fontSize:15,fontWeight:800,color:C.text}},'Rev Up → Rev '+nrev),
+              e('div',{style:{fontSize:12,color:C.muted,marginTop:3}},d.number+' — '+d.title)
+            ),
+            e('button',{onClick:closeModal,style:{background:'none',border:'none',color:C.muted,fontSize:18,cursor:'pointer'}},'✕')
+          ),
+          e('div',{style:{background:'rgba(255,255,255,0.03)',border:'1px solid '+C.border,borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:12,color:C.muted}},
+            'Current: Rev '+cr.rev+' ('+cr.date+') — "'+cr.notes+'"'
+          ),
+          e('div',{style:{marginBottom:20}},
+            e('label',{style:labelStyle},'Reason for Rev '+nrev),
+            e('textarea',{value:inp.notes,onChange:function(ev){setInp(function(p){return Object.assign({},p,{notes:ev.target.value});});},placeholder:'What changed and why...',rows:4,style:Object.assign({},inpStyle,{resize:'vertical'}),autoFocus:true})
+          ),
+          e('div',{style:{display:'flex',justifyContent:'flex-end',gap:8}},
+            e('button',{onClick:closeModal,style:{padding:'9px 18px',fontSize:12,background:'transparent',border:'1px solid '+C.border,borderRadius:6,color:C.silver,cursor:'pointer'}},'Cancel'),
+            e('button',{onClick:submitRev,style:{padding:'9px 18px',fontSize:12,background:C.gold,color:'#080d18',border:'none',borderRadius:6,cursor:'pointer',fontWeight:700}},'Issue Rev '+nrev)
+          )
+        )
+      );
+    }
+    return null;
+  }
+
+  return e('div',null,
+    e(ModalForm,null),
+    e('div',{style:{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:18}},
+      e(Card,{style:{borderTop:'2px solid '+C.gold}},
+        e(Stat,{label:'Total Documents',value:docs.length,sub:'All SoWs + POs on file',accent:C.gold})),
+      e(Card,{style:{borderTop:'2px solid '+C.bull}},
+        e(Stat,{label:'Active SoWs',value:sowCount,sub:'Statements of Work',accent:C.bull})),
+      e(Card,{style:{borderTop:'2px solid '+C.an2}},
+        e(Stat,{label:'Active POs',value:poCount,sub:'Purchase Orders',accent:C.an2})),
+      e(Card,{style:{borderTop:'2px solid '+C.inc1}},
+        e(Stat,{label:'Active Committed Value',value:'$'+Math.round(totalVal).toLocaleString(),sub:'Sum of active doc amounts',accent:C.inc1}))
+    ),
+    e('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14}},
+      e('div',{style:{display:'flex',gap:6}},
+        [['all','All'],['active','Active'],['sow','SoW'],['po','PO'],['archived','Archived']].map(function(pair){
+          return e('button',{key:pair[0],onClick:function(){setFilter(pair[0]);},style:{
+            padding:'7px 14px',fontSize:11,cursor:'pointer',borderRadius:6,letterSpacing:'0.04em',textTransform:'uppercase',
+            border:'1px solid '+(filter===pair[0]?C.gold:C.border),background:filter===pair[0]?C.gold:'transparent',
+            color:filter===pair[0]?'#080d18':C.silver,fontWeight:filter===pair[0]?700:500}},pair[1]);
+        })
+      ),
+      e('div',{style:{display:'flex',gap:8}},
+        e('button',{onClick:function(){openNew('SOW');},style:{padding:'8px 16px',fontSize:12,background:C.bull,color:'#080d18',border:'none',borderRadius:6,cursor:'pointer',fontWeight:700}},'+ New SoW'),
+        e('button',{onClick:function(){openNew('PO');},style:{padding:'8px 16px',fontSize:12,background:C.gold,color:'#080d18',border:'none',borderRadius:6,cursor:'pointer',fontWeight:700}},'+ New PO')
+      )
+    ),
+    fd.length===0?e(Card,{style:{textAlign:'center',padding:40}},
+      e('div',{style:{fontSize:14,color:C.muted,marginBottom:8}},'No documents yet'),
+      e('div',{style:{fontSize:12,color:C.muted}},'Click "+ New SoW" or "+ New PO" to add your first document')
+    ):e('div',{style:{display:'flex',flexDirection:'column',gap:8}},
+      fd.map(function(doc){
+        var cr=currentRev(doc);
+        return e('div',{key:doc.id,style:{background:'rgba(255,255,255,0.025)',border:'1px solid '+C.border,borderRadius:10,padding:'14px 18px',display:'flex',alignItems:'center',gap:14,cursor:'pointer',transition:'border-color 0.15s'},
+          onClick:function(){openView(doc);}},
+          e('div',{style:{width:36,height:36,borderRadius:8,background:revColor(cr.rev)+'22',color:revColor(cr.rev),fontWeight:900,fontSize:15,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},'Rev '+cr.rev),
+          e('div',{style:{flex:1,minWidth:0}},
+            e('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:4,flexWrap:'wrap'}},
+              e('span',{style:{fontSize:13,fontWeight:700,color:C.text}},doc.number),
+              typeBadge(doc.type),
+              statusBadge(cr.status),
+              doc.revisions.length>1&&e('span',{style:{fontSize:10,color:C.muted}},doc.revisions.length+' revisions')
+            ),
+            e('div',{style:{fontSize:12,color:C.silver,marginBottom:doc.vendor?3:0}},doc.title),
+            doc.vendor&&e('div',{style:{fontSize:11,color:C.muted}},doc.vendor)
+          ),
+          doc.amount>0&&e('div',{style:{textAlign:'right',flexShrink:0}},
+            e('div',{style:{fontSize:14,fontWeight:700,color:C.gold,fontFamily:'monospace'}},'$'+doc.amount.toLocaleString()),
+            e('div',{style:{fontSize:10,color:C.muted}},cr.date)
+          ),
+          e('div',{style:{display:'flex',flexDirection:'column',gap:5,flexShrink:0},onClick:function(ev){ev.stopPropagation();}},
+            e('button',{onClick:function(ev){ev.stopPropagation();openRev(doc);},title:'Issue next revision',style:{padding:'5px 10px',fontSize:11,background:'transparent',border:'1px solid '+C.gold,color:C.gold,borderRadius:5,cursor:'pointer',fontWeight:600}},'Rev Up'),
+            e('button',{onClick:function(ev){ev.stopPropagation();archiveDoc(doc.id);},title:'Archive active revision',style:{padding:'5px 10px',fontSize:11,background:'transparent',border:'1px solid '+C.border,color:C.muted,borderRadius:5,cursor:'pointer'}},cr.status==='Archived'?'Archived':'Archive'),
+            e('button',{onClick:function(ev){ev.stopPropagation();deleteDoc(doc.id);},title:'Delete document',style:{padding:'5px 10px',fontSize:11,background:'transparent',border:'1px solid '+C.re2+'66',color:C.re2,borderRadius:5,cursor:'pointer'}},'Delete')
+          )
+        );
+      })
+    )
   );
 }
 
